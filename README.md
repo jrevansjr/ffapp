@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. Milestone M0 provides the two-process scaffold: a Go API and a Vite/React frontend.
+A personal, local-first fantasy football draft-day dashboard. Milestone M1 adds persistent SQLite storage, embedded migrations, and fictional sample data to the Go API and Vite/React scaffold.
 
 ## Prerequisites
 
@@ -31,6 +31,8 @@ cd backend && go run ./cmd/server
 
 The API listens on `http://localhost:8080` by default. `BACKEND_PORT` can override the port when needed.
 
+At startup, the backend opens `./data/draft.db` and automatically applies any pending embedded migrations. Existing data is preserved between runs. Set `DB_PATH` to use a different database file; its parent directory is created automatically.
+
 In another terminal, start the frontend:
 
 ```bash
@@ -39,7 +41,15 @@ cd frontend && npm run dev
 
 Open `http://localhost:5173`. The Vite development server proxies relative `/api` requests to `http://localhost:8080`; the Go server does not enable CORS.
 
-The seed command (`cd backend && go run ./cmd/seed`) is introduced in Milestone M1, when SQLite storage is added. There is no database or seed data in M0.
+## Sample data
+
+Load the fictional sample dataset with:
+
+```bash
+cd backend && go run ./cmd/seed
+```
+
+The seed contains 60 clearly fictional players with synthetic stats, ADP, tiers, odds, and draft picks. It is idempotent and safe to run again: existing sample rows are updated rather than duplicated. Seeding is explicit and never runs automatically when the backend starts.
 
 ## Available routes
 
