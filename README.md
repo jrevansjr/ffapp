@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. Milestone M2 adds a local JSON API for NFL teams, player summaries and details, and application settings on top of the persistent SQLite store.
+A personal, local-first fantasy football draft-day dashboard. Milestone M3 adds a functional Admin page for editing the application settings stored in SQLite.
 
 ## Prerequisites
 
@@ -64,6 +64,12 @@ The seed contains 60 clearly fictional players with synthetic profile fields, cr
 - `PUT /api/settings`
 
 The frontend header displays the result of `/api/health`, providing a visible check that the two processes are communicating through the proxy. The player endpoints combine normalized player, historical stats, ADP, tier, odds, and active-draft pick data into explicit response objects; there are intentionally no raw table endpoints.
+
+## Admin settings
+
+Open `http://localhost:5173/admin` with both processes running to edit the Sleeper username, league ID, draft ID, polling toggle, and polling interval. `Save Settings` writes the complete form to SQLite; saved values survive browser refreshes and backend restarts. Empty Sleeper identifiers are valid while the app is being configured.
+
+The polling interval must be a whole number from 500 through 60000 milliseconds. Sleeper's public API has no credential, so the Admin page deliberately contains no token, API-key, or password fields. Player-pool synchronization remains deferred to its later milestone.
 
 After seeding and starting the backend, inspect the API directly with:
 
