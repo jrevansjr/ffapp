@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jrevansjr/ffapp/backend/migrations"
+	"github.com/pressly/goose/v3"
 )
 
 // TestOpenCreatesSchemaAndPreservesData exercises the real migration path with
@@ -84,6 +87,60 @@ func TestOpenCreatesSchemaAndPreservesData(t *testing.T) {
 	}
 }
 
+// TestOpenUpgradesExistingPlayerRows proves the additive player-profile
+// migration preserves databases that were already created during M1.
+func TestOpenUpgradesExistingPlayerRows(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "draft.db")
+	db, err := sql.Open("sqlite",
+		"file:"+dbPath+"?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatalf("open version-one database: %v", err)
+	}
+	goose.SetBaseFS(migrations.FS)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("set migration dialect: %v", err)
+	}
+	if err := goose.UpTo(db, ".", 1); err != nil {
+		t.Fatalf("apply initial migration: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO nfl_teams (id, abbreviation, name) VALUES (1, 'TST', 'Test Team');
+		INSERT INTO players (
+			id, sleeper_player_id, first_name, last_name, position, nfl_team_id, birth_date
+		) VALUES (1, 'existing-player', 'Existing', 'Player', 'WR', 1, '2000-01-02');
+	`); err != nil {
+		t.Fatalf("insert pre-upgrade player: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close version-one database: %v", err)
+	}
+
+	upgraded, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("upgrade database with Open(): %v", err)
+	}
+	defer upgraded.Close()
+
+	var (
+		name       string
+		yearsExp   sql.NullInt64
+		sportradar sql.NullString
+	)
+	if err := upgraded.QueryRow(`
+		SELECT first_name, years_exp, sportradar_id
+		FROM players
+		WHERE sleeper_player_id = ?
+	`, "existing-player").Scan(&name, &yearsExp, &sportradar); err != nil {
+		t.Fatalf("load upgraded player: %v", err)
+	}
+	if name != "Existing" {
+		t.Fatalf("preserved first_name = %q, want Existing", name)
+	}
+	if yearsExp.Valid || sportradar.Valid {
+		t.Fatalf("new optional fields = %v, %v; want NULL", yearsExp, sportradar)
+	}
+}
+
 // TestSeedSampleDataIsIdempotent protects stable row counts and relationships
 // across repeated seed runs using SQLite rather than storage mocks.
 func TestSeedSampleDataIsIdempotent(t *testing.T) {
@@ -140,6 +197,27 @@ func TestSeedSampleDataIsIdempotent(t *testing.T) {
 	}
 	if joinedWeeklyRows != 480 {
 		t.Fatalf("joined weekly row count = %d, want 480", joinedWeeklyRows)
+	}
+
+	var (
+		status, college, espnID, sportradarID string
+		yearsExp                              int
+	)
+	if err := db.QueryRow(`
+		SELECT status, college, years_exp, espn_id, sportradar_id
+		FROM players
+		WHERE sleeper_player_id = ?
+	`, "sample-player-001").Scan(
+		&status, &college, &yearsExp, &espnID, &sportradarID,
+	); err != nil {
+		t.Fatalf("load seeded profile fields: %v", err)
+	}
+	if status != "Active" || college == "" || yearsExp != 1 ||
+		espnID != "sample-espn-001" || sportradarID != "sample-sportradar-001" {
+		t.Fatalf(
+			"seeded profile = %q, %q, %d, %q, %q; want deterministic values",
+			status, college, yearsExp, espnID, sportradarID,
+		)
 	}
 
 	rows, err := db.Query("PRAGMA foreign_key_check")
