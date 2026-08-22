@@ -158,6 +158,19 @@ func seedPlayers(
 			playerNumber++
 			team := sampleTeams[(playerNumber-1)%len(sampleTeams)]
 			sleeperID := fmt.Sprintf("sample-player-%03d", playerNumber)
+			// A few injured players plus many NULL injury fields make both populated
+			// and missing-value UI states reachable with deterministic sample data.
+			var injuryStatus, injuryStartDate, practiceParticipation any
+			switch playerNumber % 10 {
+			case 0:
+				injuryStatus = "Out"
+				injuryStartDate = "2026-08-01"
+				practiceParticipation = "Did Not Participate"
+			case 1:
+				injuryStatus = "Questionable"
+				injuryStartDate = "2026-08-10"
+				practiceParticipation = "Limited Participation"
+			}
 			birthDate := time.Date(
 				1994+(playerNumber%8),
 				time.Month(1+(playerNumber%12)),
@@ -177,15 +190,53 @@ func seedPlayers(
 					position,
 					nfl_team_id,
 					birth_date,
-					active
-				) VALUES (?, ?, ?, ?, ?, ?, 1)
+					active,
+					status,
+					number,
+					college,
+					height,
+					weight,
+					birth_country,
+					years_exp,
+					depth_chart_position,
+					depth_chart_order,
+					injury_status,
+					injury_start_date,
+					practice_participation,
+					espn_id,
+					sportradar_id,
+					rotowire_id,
+					rotoworld_id,
+					yahoo_id,
+					fantasy_data_id,
+					stats_id
+				) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT (sleeper_player_id) DO UPDATE SET
 					first_name = excluded.first_name,
 					last_name = excluded.last_name,
 					position = excluded.position,
 					nfl_team_id = excluded.nfl_team_id,
 					birth_date = excluded.birth_date,
-					active = excluded.active
+					active = excluded.active,
+					status = excluded.status,
+					number = excluded.number,
+					college = excluded.college,
+					height = excluded.height,
+					weight = excluded.weight,
+					birth_country = excluded.birth_country,
+					years_exp = excluded.years_exp,
+					depth_chart_position = excluded.depth_chart_position,
+					depth_chart_order = excluded.depth_chart_order,
+					injury_status = excluded.injury_status,
+					injury_start_date = excluded.injury_start_date,
+					practice_participation = excluded.practice_participation,
+					espn_id = excluded.espn_id,
+					sportradar_id = excluded.sportradar_id,
+					rotowire_id = excluded.rotowire_id,
+					rotoworld_id = excluded.rotoworld_id,
+					yahoo_id = excluded.yahoo_id,
+					fantasy_data_id = excluded.fantasy_data_id,
+					stats_id = excluded.stats_id
 			`,
 				sleeperID,
 				"Sample",
@@ -193,6 +244,25 @@ func seedPlayers(
 				group.Position,
 				teamIDs[team.Abbreviation],
 				birthDate,
+				"Active",
+				1+(playerNumber%99),
+				fmt.Sprintf("Sample University %02d", 1+(playerNumber%12)),
+				fmt.Sprintf("%d'%d\"", 5+(playerNumber%2), 8+(playerNumber%5)),
+				fmt.Sprintf("%d", 185+(playerNumber%65)),
+				"United States",
+				playerNumber%9,
+				group.Position,
+				1+((positionRank-1)%3),
+				injuryStatus,
+				injuryStartDate,
+				practiceParticipation,
+				fmt.Sprintf("sample-espn-%03d", playerNumber),
+				fmt.Sprintf("sample-sportradar-%03d", playerNumber),
+				fmt.Sprintf("sample-rotowire-%03d", playerNumber),
+				fmt.Sprintf("sample-rotoworld-%03d", playerNumber),
+				fmt.Sprintf("sample-yahoo-%03d", playerNumber),
+				fmt.Sprintf("sample-fantasy-data-%03d", playerNumber),
+				fmt.Sprintf("sample-stats-%03d", playerNumber),
 			)
 			if err != nil {
 				return nil, fmt.Errorf("upsert sample player %s: %w", sleeperID, err)

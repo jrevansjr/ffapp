@@ -27,7 +27,7 @@ func main() {
 
 	address := ":" + port
 	log.Printf("starting API server on %s", address)
-	if err := http.ListenAndServe(address, api.NewRouter()); err != nil {
+	if err := http.ListenAndServe(address, api.NewRouter(db)); err != nil {
 		log.Fatalf("API server stopped: %v", err)
 	}
 }
