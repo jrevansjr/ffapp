@@ -36,6 +36,7 @@ export interface PlayerSeasonStats {
   games_played: number
   fantasy_points_half_ppr: number
   average_fantasy_points: number | null
+  passing_yards: number
   targets: number
   targets_per_game: number | null
   receptions: number
@@ -77,4 +78,96 @@ export interface PlayerListItem {
 export interface PlayerFilters {
   position: string
   team: string
+}
+
+export interface PlayerProviderIDs {
+  espn: string | null
+  sportradar: string | null
+  rotowire: string | null
+  rotoworld: string | null
+  yahoo: string | null
+  fantasy_data: string | null
+  stats: string | null
+}
+
+/** PlayerProfile is the identity and status portion of a player-detail response. */
+export interface PlayerProfile {
+  id: number
+  sleeper_player_id: string | null
+  first_name: string
+  last_name: string
+  position: string
+  nfl_team: NFLTeam | null
+  birth_date: string | null
+  age: number | null
+  active: boolean
+  status: string | null
+  number: number | null
+  college: string | null
+  height: string | null
+  weight: string | null
+  birth_country: string | null
+  years_exp: number | null
+  depth_chart_position: string | null
+  depth_chart_order: number | null
+  injury_status: string | null
+  injury_start_date: string | null
+  practice_participation: string | null
+  provider_ids: PlayerProviderIDs
+  is_taken: boolean
+}
+
+export interface PlayerTier {
+  season: number
+  source: string
+  tier: number
+  updated_at: string
+}
+
+export interface OddsLine {
+  season: number
+  source: string
+  market: string
+  line: number
+  over_price: number | null
+  under_price: number | null
+  captured_at: string
+}
+
+export interface PlayerDetailOdds {
+  touchdowns: OddsLine | null
+  team_wins: OddsLine | null
+}
+
+/** PlayerWeekStats is one persisted game-week used by the inspector charts. */
+export interface PlayerWeekStats {
+  season: number
+  week: number
+  fantasy_points_half_ppr: number
+  passing_yards: number
+  targets: number
+  receptions: number
+  rushing_attempts: number
+  receiving_yards: number
+  rushing_yards: number
+  receiving_touchdowns: number
+  rushing_touchdowns: number
+}
+
+export interface WeeklySummary {
+  average: number | null
+  high: number | null
+  median: number | null
+  low: number | null
+}
+
+/** PlayerDetail is the complete local payload used by the Draft Day inspector. */
+export interface PlayerDetail {
+  player: PlayerProfile
+  season: PlayerSeasonStats | null
+  adp: PlayerADP
+  tier: PlayerTier | null
+  odds: PlayerDetailOdds
+  weekly: PlayerWeekStats[]
+  weekly_summary: WeeklySummary
 }

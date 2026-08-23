@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. Milestone M4 adds a sortable, filterable Overview of the player data stored in SQLite.
+A personal, local-first fantasy football draft-day dashboard. Milestone M5 adds an available-player worklist and player inspector for practicing draft decisions with local sample data.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ cd backend && go run ./cmd/server
 
 The API listens on `http://localhost:8080` by default. `BACKEND_PORT` can override the port when needed.
 
-At startup, the backend opens `./data/draft.db` and automatically applies any pending embedded migrations. Existing data is preserved between runs, including when the M2 migration adds nullable player-profile fields. Set `DB_PATH` to use a different database file; its parent directory is created automatically.
+At startup, the backend opens `./data/draft.db` and automatically applies any pending embedded migrations. Existing data is preserved between runs. Set `DB_PATH` to use a different database file; its parent directory is created automatically.
 
 In another terminal, start the frontend:
 
@@ -49,7 +49,7 @@ Load the fictional sample dataset with:
 cd backend && go run ./cmd/seed
 ```
 
-The seed contains 60 clearly fictional players with synthetic profile fields, cross-provider IDs, stats, ADP, tiers, odds, and draft picks. It is idempotent and safe to run again: existing sample rows are updated rather than duplicated. Seeding is explicit and never runs automatically when the backend starts.
+The seed contains 60 clearly fictional players with synthetic profile fields, cross-provider IDs, stats, ADP, tiers, odds, and draft picks. It is idempotent and safe to run again: existing sample rows are updated rather than duplicated. Seeding is explicit and never runs automatically when the backend starts. After updating to M5, rerun it once to populate the new synthetic QB passing-yard data added by migration `003`.
 
 ## Available routes
 
@@ -72,6 +72,16 @@ Open `http://localhost:5173/overview` to view the persisted player pool. Overvie
 This page never calls Sleeper. Current sample players come from `go run ./cmd/seed`; the future real-player import will make one explicit Sleeper player-pool request and persist its results in SQLite. Live draft polling is a separate future flow that will retrieve picks for only the draft ID configured on Admin.
 
 Taken players remain visible with muted, struck-through names. To exercise that state with the sample data, save `sample-draft-2026` as the Draft ID on Admin, then return to Overview.
+
+## Draft Day
+
+Open `http://localhost:5173/draft` to use the local draft workspace. The left pane contains only available players and supports name, position, NFL-team, and tier filters. Select a row to load that player's persisted detail into the inspector without navigating away from the page.
+
+The inspector shows weekly half-PPR range statistics, ADP, tier, odds, and two trend charts. Every player has a fantasy-points chart. WR and TE players receive a targets chart, RB players receive a dual-axis rushing-attempts and targets chart, and QB players receive a passing-yards chart. These trends are context for comparing consistency and weekly opportunity; they are not app-generated recommendations.
+
+To exercise taken-player removal, save `sample-draft-2026` as the Draft ID on Admin. The six persisted sample picks disappear from Draft Day but remain muted on Overview. Changing to an ID with no persisted picks starts with all players available without deleting the old sample draft.
+
+M5 reads only the Go API and SQLite. It does not call Sleeper or poll for draft changes. Live synchronization and manual draft actions remain later milestones.
 
 ## Admin settings
 

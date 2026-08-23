@@ -1,4 +1,10 @@
-import type { NFLTeam, PlayerListItem, Settings, SettingsUpdate } from "@/lib/types"
+import type {
+  NFLTeam,
+  PlayerDetail,
+  PlayerListItem,
+  Settings,
+  SettingsUpdate,
+} from "@/lib/types"
 
 export interface HealthResponse {
   status: string
@@ -75,4 +81,14 @@ export async function getPlayers(): Promise<PlayerListItem[]> {
   }
 
   return response.json() as Promise<PlayerListItem[]>
+}
+
+/** Loads one persisted player and the historical data used by the inspector. */
+export async function getPlayer(playerID: number): Promise<PlayerDetail> {
+  const response = await fetch(`/api/players/${playerID}`)
+  if (!response.ok) {
+    throw await responseError(response, "Could not load player details from the local database")
+  }
+
+  return response.json() as Promise<PlayerDetail>
 }

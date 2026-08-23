@@ -73,4 +73,7 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if detail.Player.ProviderIDs.Sportradar == nil {
 		t.Fatal("detail Sportradar ID = nil, want seeded ID")
 	}
+	if detail.Weekly[0].PassingYards == 0 {
+		t.Fatal("detail weekly passing yards = 0, want seeded QB yards")
+	}
 }

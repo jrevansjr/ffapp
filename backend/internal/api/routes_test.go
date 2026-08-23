@@ -107,8 +107,9 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	if len(detail.Weekly) != 8 {
 		t.Fatalf("weekly response count = %d, want 8", len(detail.Weekly))
 	}
-	if detail.WeeklySummary.Average == nil || detail.Player.ProviderIDs.Sportradar == nil {
-		t.Fatal("player detail is missing summary or provider identity")
+	if detail.WeeklySummary.Average == nil || detail.Player.ProviderIDs.Sportradar == nil ||
+		detail.Weekly[0].PassingYards == 0 {
+		t.Fatal("player detail is missing summary, provider identity, or passing yards")
 	}
 }
 
