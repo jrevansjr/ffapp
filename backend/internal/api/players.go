@@ -29,18 +29,19 @@ type playerADPResponse struct {
 }
 
 type seasonStatsResponse struct {
-	Season               int      `json:"season"`
-	GamesPlayed          int      `json:"games_played"`
-	FantasyPointsHalfPPR float64  `json:"fantasy_points_half_ppr"`
-	AverageFantasyPoints *float64 `json:"average_fantasy_points"`
-	Targets              int      `json:"targets"`
-	TargetsPerGame       *float64 `json:"targets_per_game"`
-	Receptions           int      `json:"receptions"`
-	RushingAttempts      int      `json:"rushing_attempts"`
-	ReceivingYards       int      `json:"receiving_yards"`
-	RushingYards         int      `json:"rushing_yards"`
-	ReceivingTouchdowns  int      `json:"receiving_touchdowns"`
-	RushingTouchdowns    int      `json:"rushing_touchdowns"`
+	Season                 int      `json:"season"`
+	GamesPlayed            int      `json:"games_played"`
+	FantasyPointsHalfPPR   float64  `json:"fantasy_points_half_ppr"`
+	AverageFantasyPoints   *float64 `json:"average_fantasy_points"`
+	Targets                int      `json:"targets"`
+	TargetsPerGame         *float64 `json:"targets_per_game"`
+	Receptions             int      `json:"receptions"`
+	RushingAttempts        int      `json:"rushing_attempts"`
+	RushingAttemptsPerGame *float64 `json:"rushing_attempts_per_game"`
+	ReceivingYards         int      `json:"receiving_yards"`
+	RushingYards           int      `json:"rushing_yards"`
+	ReceivingTouchdowns    int      `json:"receiving_touchdowns"`
+	RushingTouchdowns      int      `json:"rushing_touchdowns"`
 }
 
 type playerListOddsResponse struct {
@@ -331,26 +332,29 @@ func newSeasonStatsResponse(stats *database.PlayerSeasonStats) *seasonStatsRespo
 	if stats == nil {
 		return nil
 	}
-	var averageFantasyPoints, targetsPerGame *float64
+	var averageFantasyPoints, targetsPerGame, rushingAttemptsPerGame *float64
 	if stats.GamesPlayed > 0 {
 		average := stats.FantasyPointsHalfPPR / float64(stats.GamesPlayed)
 		targetAverage := float64(stats.Targets) / float64(stats.GamesPlayed)
+		rushingAttemptAverage := float64(stats.RushingAttempts) / float64(stats.GamesPlayed)
 		averageFantasyPoints = &average
 		targetsPerGame = &targetAverage
+		rushingAttemptsPerGame = &rushingAttemptAverage
 	}
 	return &seasonStatsResponse{
-		Season:               stats.Season,
-		GamesPlayed:          stats.GamesPlayed,
-		FantasyPointsHalfPPR: stats.FantasyPointsHalfPPR,
-		AverageFantasyPoints: averageFantasyPoints,
-		Targets:              stats.Targets,
-		TargetsPerGame:       targetsPerGame,
-		Receptions:           stats.Receptions,
-		RushingAttempts:      stats.RushingAttempts,
-		ReceivingYards:       stats.ReceivingYards,
-		RushingYards:         stats.RushingYards,
-		ReceivingTouchdowns:  stats.ReceivingTouchdowns,
-		RushingTouchdowns:    stats.RushingTouchdowns,
+		Season:                 stats.Season,
+		GamesPlayed:            stats.GamesPlayed,
+		FantasyPointsHalfPPR:   stats.FantasyPointsHalfPPR,
+		AverageFantasyPoints:   averageFantasyPoints,
+		Targets:                stats.Targets,
+		TargetsPerGame:         targetsPerGame,
+		Receptions:             stats.Receptions,
+		RushingAttempts:        stats.RushingAttempts,
+		RushingAttemptsPerGame: rushingAttemptsPerGame,
+		ReceivingYards:         stats.ReceivingYards,
+		RushingYards:           stats.RushingYards,
+		ReceivingTouchdowns:    stats.ReceivingTouchdowns,
+		RushingTouchdowns:      stats.RushingTouchdowns,
 	}
 }
 

@@ -25,19 +25,20 @@ Dense, sortable, filterable TanStack Table of the player pool. Filters: **positi
 Columns, in this order unless a small UX adjustment is clearly better:
 
 1. Name
-2. Team
-3. Age (calculated from birth date)
-4. FantasyPros Aggregate ADP
-5. Sleeper ADP
-6. Underdog ADP
-7. 2025 Total Fantasy Points (0.5 PPR)
-8. 2025 Games Played
-9. 2025 Average Fantasy Points
-10. 2025 Targets Per Game
-11. 2025 Receptions
-12. 2026 Vegas O/U TDs
-13. 2026 Vegas Team Win O/U
-14. 2026 Projected Position Tier
+2. Position
+3. Team
+4. Years Experience (stored from Sleeper's `years_exp`)
+5. FantasyPros Aggregate ADP
+6. Sleeper ADP
+7. Underdog ADP
+8. 2026 Projected Position Tier
+9. 2025 Total Fantasy Points (0.5 PPR)
+10. 2025 Games Played
+11. 2025 Average Fantasy Points
+12. 2025 Targets Per Game
+13. 2025 Rushing Attempts Per Game (derived from season totals and games played)
+14. 2026 Vegas O/U TDs
+15. 2026 Vegas Team Win O/U
 
 Numeric columns sort numerically; missing values render `—` (never `0`) and sort last. No server-side pagination or virtualization — the pool is small.
 
@@ -111,7 +112,7 @@ DELETE /api/draft/manual-picks/{id}
 POST /api/players/sync                 → triggers the one-shot Sleeper players sync
 ```
 
-`/api/players` returns the fields Overview and Draft Day need (name, position, team, age, three ADPs, 2025 season summary fields, 2026 odds lines, tier, `is_taken`). These are presentation fields — they do not imply denormalized columns.
+`/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, three ADPs, 2025 season summary fields, 2026 odds lines, tier, `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls Sleeper; importing the player pool and polling draft picks are separate operations.
 
 `/api/draft/state` is a **read** endpoint: reads settings; returns a clean "not configured" state when no draft ID exists; reads the latest synchronized state from SQLite; resolves local player IDs; combines official + manual picks without duplicates; falls back to persisted picks when Sleeper is down. Shape (may evolve; preserve the concepts):
 
@@ -128,7 +129,7 @@ POST /api/players/sync                 → triggers the one-shot Sleeper players
 }
 ```
 
-Frontend: one TanStack Query per concern — `["settings"]`, `["players", filters]`, `["player", id]`, `["draft-state"]`, `["nfl-teams"]`. One draft-state query feeds the whole Draft Day page (no redundant nested-component refetches). Mutations for settings and manual picks invalidate only affected queries. All requests use relative `/api/...` paths through the Vite proxy.
+Frontend: one TanStack Query per concern — `["settings"]`, `["players"]`, `["player", id]`, `["draft-state"]`, `["nfl-teams"]`. Overview fetches the small persisted player pool once and filters it locally. One draft-state query feeds the whole Draft Day page (no redundant nested-component refetches). Mutations for settings and manual picks invalidate only affected queries. All requests use relative `/api/...` paths through the Vite proxy.
 
 ---
 

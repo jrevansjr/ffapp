@@ -45,6 +45,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
     mutationFn: updateSettings,
     onSuccess: (savedSettings) => {
       queryClient.setQueryData(settingsQueryKey, savedSettings)
+      void queryClient.invalidateQueries({ queryKey: ["players"] })
       setForm(formStateFromSettings(savedSettings))
       setValidationError(null)
     },

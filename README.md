@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. Milestone M3 adds a functional Admin page for editing the application settings stored in SQLite.
+A personal, local-first fantasy football draft-day dashboard. Milestone M4 adds a sortable, filterable Overview of the player data stored in SQLite.
 
 ## Prerequisites
 
@@ -64,6 +64,14 @@ The seed contains 60 clearly fictional players with synthetic profile fields, cr
 - `PUT /api/settings`
 
 The frontend header displays the result of `/api/health`, providing a visible check that the two processes are communicating through the proxy. The player endpoints combine normalized player, historical stats, ADP, tier, odds, and active-draft pick data into explicit response objects; there are intentionally no raw table endpoints.
+
+## Player Overview
+
+Open `http://localhost:5173/overview` to view the persisted player pool. Overview loads all active players from the local Go API once, then applies position and NFL-team filters in the browser. Every column is sortable; FantasyPros Aggregate ADP is the initial sort, and missing values render as `—` after real values.
+
+This page never calls Sleeper. Current sample players come from `go run ./cmd/seed`; the future real-player import will make one explicit Sleeper player-pool request and persist its results in SQLite. Live draft polling is a separate future flow that will retrieve picks for only the draft ID configured on Admin.
+
+Taken players remain visible with muted, struck-through names. To exercise that state with the sample data, save `sample-draft-2026` as the Draft ID on Admin, then return to Overview.
 
 ## Admin settings
 
