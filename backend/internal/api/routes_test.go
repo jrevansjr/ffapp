@@ -242,13 +242,13 @@ func TestSummarize(t *testing.T) {
 
 func TestSeasonAveragesRequireGamesPlayed(t *testing.T) {
 	withGames := newSeasonStatsResponse(&database.PlayerSeasonStats{
-		GamesPlayed: 4, FantasyPointsHalfPPR: 50, Targets: 18,
+		GamesPlayed: 4, FantasyPointsHalfPPR: 50, Targets: 18, RushingAttempts: 27,
 	})
-	if *withGames.AverageFantasyPoints != 12.5 || *withGames.TargetsPerGame != 4.5 {
-		t.Fatalf("season averages = %#v, want 12.5 points and 4.5 targets", withGames)
+	if *withGames.AverageFantasyPoints != 12.5 || *withGames.TargetsPerGame != 4.5 || *withGames.RushingAttemptsPerGame != 6.75 {
+		t.Fatalf("season averages = %#v, want 12.5 points, 4.5 targets, and 6.75 rushing attempts", withGames)
 	}
 	withoutGames := newSeasonStatsResponse(&database.PlayerSeasonStats{})
-	if withoutGames.AverageFantasyPoints != nil || withoutGames.TargetsPerGame != nil {
+	if withoutGames.AverageFantasyPoints != nil || withoutGames.TargetsPerGame != nil || withoutGames.RushingAttemptsPerGame != nil {
 		t.Fatalf("zero-game averages = %#v, want null", withoutGames)
 	}
 }

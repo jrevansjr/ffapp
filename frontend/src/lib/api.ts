@@ -1,4 +1,4 @@
-import type { Settings, SettingsUpdate } from "@/lib/types"
+import type { NFLTeam, PlayerListItem, Settings, SettingsUpdate } from "@/lib/types"
 
 export interface HealthResponse {
   status: string
@@ -52,4 +52,27 @@ export async function updateSettings(settings: SettingsUpdate): Promise<Settings
   }
 
   return response.json() as Promise<Settings>
+}
+
+/** Loads team labels used by the local Overview filter. */
+export async function getNFLTeams(): Promise<NFLTeam[]> {
+  const response = await fetch("/api/nfl-teams")
+  if (!response.ok) {
+    throw await responseError(response, "Could not load NFL teams from the local database")
+  }
+
+  return response.json() as Promise<NFLTeam[]>
+}
+
+/**
+ * Loads the persisted player pool from Go/SQLite. This request never contacts
+ * Sleeper; player-pool imports and live draft-pick polling are separate flows.
+ */
+export async function getPlayers(): Promise<PlayerListItem[]> {
+  const response = await fetch("/api/players")
+  if (!response.ok) {
+    throw await responseError(response, "Could not load players from the local database")
+  }
+
+  return response.json() as Promise<PlayerListItem[]>
 }
