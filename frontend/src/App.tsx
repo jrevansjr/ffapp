@@ -1,11 +1,15 @@
+import { lazy, Suspense } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Navigate, NavLink, Outlet, Route, Routes } from "react-router"
 
 import { getHealth } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import AdminPage from "@/pages/admin"
-import DraftPage from "@/pages/draft"
 import OverviewPage from "@/pages/overview"
+
+// Draft Day owns the charting dependency, so loading its route on demand keeps
+// the lighter Overview and Admin pages out of that bundle.
+const DraftPage = lazy(() => import("@/pages/draft"))
 
 const navigation = [
   { label: "Overview", to: "/overview" },
@@ -82,10 +86,22 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<Navigate replace to="/overview" />} />
         <Route path="overview" element={<OverviewPage />} />
-        <Route path="draft" element={<DraftPage />} />
+        <Route
+          path="draft"
+          element={
+            <Suspense
+              fallback={
+                <p className="text-sm text-muted-foreground" role="status">
+                  Loading Draft Day…
+                </p>
+              }
+            >
+              <DraftPage />
+            </Suspense>
+          }
+        />
         <Route path="admin" element={<AdminPage />} />
       </Route>
     </Routes>
   )
 }
-

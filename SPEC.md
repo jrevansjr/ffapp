@@ -74,12 +74,12 @@ Prioritize quick draft decisions.
 
 - **Header:** name, position, NFL team, 2026 tier, Aggregate ADP (Sleeper/Underdog ADP optionally nearby).
 - **2025 weekly 0.5-PPR summary:** average, high, median, low. Median computed correctly. No weekly data → empty state, not fake zeros.
-- **Three compact Recharts line charts:** weekly fantasy points, weekly targets, weekly rushing attempts (works for every player; zero-heavy data acceptable — no position-specific chart systems). X = week, Y = value, tooltips required, optional average reference line if visually clean, no elaborate interactions.
+- **Two compact Recharts line charts:** weekly fantasy points for every player, plus a position-specific volume chart. WR/TE show weekly targets; RB shows rushing attempts and targets together with separate axes; QB shows weekly passing yards. X = week, Y = value, tooltips required, optional average reference line if visually clean, no elaborate interactions.
 - **Additional data:** 2025 games played, receptions, targets/game; 2026 Vegas TD O/U and team win O/U; all three ADPs.
 - **Manual action:** `Mark Drafted` button (see fallback below).
 - No recommendation scores or decision logic of any kind.
 
-**Chart component:** one reusable weekly line chart taking `title, data, xKey, yKey, unit, optionalAverage`. Summary stats (avg/high/median/low) are calculated in **one** place — prefer the Go backend in the detail DTO for consistency and testability.
+**Chart component:** one reusable weekly trend chart taking a title, weekly data, one or two series, and an optional average reference. Summary stats (avg/high/median/low) are calculated in **one** place — prefer the Go backend in the detail DTO for consistency and testability.
 
 ### Manual fallback
 
@@ -139,7 +139,7 @@ Normalized; season/source-varying data in its own tables. SQLite types and conve
 
 - **`nfl_teams`** — `id, abbreviation (unique), name`. No win totals here (season/source-varying → `odds`).
 - **`players`** — core identity (`id, sleeper_player_id, first_name, last_name, position, nfl_team_id, birth_date, active`), Sleeper profile/status (`status, number, college, height, weight, birth_country, years_exp, depth_chart_position, depth_chart_order, injury_status, injury_start_date, practice_participation`), and nullable cross-provider IDs (`espn_id, sportradar_id, rotowire_id, rotoworld_id, yahoo_id, fantasy_data_id, stats_id`). External IDs are TEXT even when an upstream payload uses numbers. Store birth date and compute age; store `years_exp` directly. No availability here.
-- **`player_season_stats`** — key `(player_id, season)`: games_played, fantasy_points_half_ppr, targets, receptions, rushing_attempts, receiving_yards, rushing_yards, receiving_touchdowns, rushing_touchdowns. Derive per-game metrics; don't store them.
+- **`player_season_stats`** — key `(player_id, season)`: games_played, fantasy_points_half_ppr, passing_yards, targets, receptions, rushing_attempts, receiving_yards, rushing_yards, receiving_touchdowns, rushing_touchdowns. Derive per-game metrics; don't store them.
 - **`player_week_stats`** — key `(player_id, season, week)`: same stat fields. Storing weekly half-PPR points directly is fine for sample data; if raw stats are ingested later, calculate points with one small explicit function.
 - **`player_adp`** — key `(player_id, season, source)`: adp, updated_at. Sources: `fantasypros`, `sleeper`, `underdog`.
 - **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. Initial source is sample only; no tier algorithm.
@@ -158,7 +158,7 @@ Indexes when they're free to add: unique `players.sleeper_player_id`; `players.p
 
 The first useful version must not depend on external providers. Seeding is `go run ./cmd/seed`: a small Go program that inserts clearly fictional players with clearly synthetic stats (real NFL team abbreviations are fine; label as sample data in README/UI). It must be idempotent — re-running never duplicates rows (upsert or wipe-and-reload sample-tagged data, whichever is simpler).
 
-Seed at least: **~50–75 players** across QB/RB/WR/TE and many NFL teams (enough that Draft Day filtering, tiers, and pick-by-pick removal actually look and behave like a draft); 2025 season stats; 6–8 weeks of 2025 weekly stats per player; all three ADP sources; 2026 sample tiers; 2026 sample player TD lines and team win totals; one local draft with a few sample picks. Generating the synthetic values in a loop with simple randomization is encouraged — don't hand-write 75 players, and don't spend effort making fake data realistic. Spend it making every UI state reachable.
+Seed at least: **~50–75 players** across QB/RB/WR/TE and many NFL teams (enough that Draft Day filtering, tiers, and pick-by-pick removal actually look and behave like a draft); 2025 season stats, including QB passing yards; 6–8 weeks of 2025 weekly stats per player; all three ADP sources; 2026 sample tiers; 2026 sample player TD lines and team win totals; one local draft with a few sample picks. Generating the synthetic values in a loop with simple randomization is encouraged — don't hand-write 75 players, and don't spend effort making fake data realistic. Spend it making every UI state reachable.
 
 ---
 
@@ -184,7 +184,7 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M4 — Overview.** Full table on sample data. *Done when:* all columns visible, both filters work, numeric sorting works, missing values render `—`, drafted-styling structurally supported.
 
-**M5 — Draft Day (sample).** Available table, row selection, inspector, three charts, summary stats, ADP/tier/odds display, using sample draft state. *Done when:* selection updates the inspector, charts handle sample data, sample-taken players vanish from Draft Day and gray on Overview.
+**M5 — Draft Day (sample).** Available table, local name/position/NFL-team/tier filters, row selection, inspector, two position-aware charts, summary stats, ADP/tier/odds display, and settings-aware sample status. *Done when:* selection updates the inspector, charts handle sample data, sample-taken players vanish from Draft Day and gray on Overview.
 
 **M6 — Real player pool.** Sleeper client foundations + Admin `Sync Players` against `/players/nfl`. *Done when:* one click populates real NFL players (upsert — re-running doesn't duplicate), sync time is recorded and displayed, synthetic sample players can coexist or be cleanly replaced (document the choice).
 

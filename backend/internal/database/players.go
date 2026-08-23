@@ -98,6 +98,7 @@ type PlayerSeasonStats struct {
 	Season               int
 	GamesPlayed          int
 	FantasyPointsHalfPPR float64
+	PassingYards         int
 	Targets              int
 	Receptions           int
 	RushingAttempts      int
@@ -112,6 +113,7 @@ type PlayerWeekStats struct {
 	Season               int
 	Week                 int
 	FantasyPointsHalfPPR float64
+	PassingYards         int
 	Targets              int
 	Receptions           int
 	RushingAttempts      int
@@ -189,6 +191,7 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			season_stats.season,
 			season_stats.games_played,
 			season_stats.fantasy_points_half_ppr,
+			season_stats.passing_yards,
 			season_stats.targets,
 			season_stats.receptions,
 			season_stats.rushing_attempts,
@@ -246,7 +249,7 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		sleeperID, teamAbbreviation, teamName, birthDate               sql.NullString
 		depthChartPosition, injuryStatus                               sql.NullString
 		teamID, number, yearsExp, depthChartOrder, season, gamesPlayed sql.NullInt64
-		targets, receptions, rushingAttempts                           sql.NullInt64
+		passingYards, targets, receptions, rushingAttempts             sql.NullInt64
 		receivingYards, rushingYards, receivingTDs, rushingTDs, tier   sql.NullInt64
 		fantasyProsADP, sleeperADP, underdogADP, fantasyPoints         sql.NullFloat64
 		touchdownLine, teamWinLine                                     sql.NullFloat64
@@ -273,6 +276,7 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		&season,
 		&gamesPlayed,
 		&fantasyPoints,
+		&passingYards,
 		&targets,
 		&receptions,
 		&rushingAttempts,
@@ -308,6 +312,7 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 			Season:               int(season.Int64),
 			GamesPlayed:          int(gamesPlayed.Int64),
 			FantasyPointsHalfPPR: fantasyPoints.Float64,
+			PassingYards:         int(passingYards.Int64),
 			Targets:              int(targets.Int64),
 			Receptions:           int(receptions.Int64),
 			RushingAttempts:      int(rushingAttempts.Int64),
@@ -465,6 +470,7 @@ func loadPlayerSeason(ctx context.Context, db *sql.DB, playerID int64) (*PlayerS
 			season,
 			games_played,
 			fantasy_points_half_ppr,
+			passing_yards,
 			targets,
 			receptions,
 			rushing_attempts,
@@ -478,6 +484,7 @@ func loadPlayerSeason(ctx context.Context, db *sql.DB, playerID int64) (*PlayerS
 		&stats.Season,
 		&stats.GamesPlayed,
 		&stats.FantasyPointsHalfPPR,
+		&stats.PassingYards,
 		&stats.Targets,
 		&stats.Receptions,
 		&stats.RushingAttempts,
@@ -611,6 +618,7 @@ func loadPlayerWeeks(ctx context.Context, db *sql.DB, playerID int64) ([]PlayerW
 			season,
 			week,
 			fantasy_points_half_ppr,
+			passing_yards,
 			targets,
 			receptions,
 			rushing_attempts,
@@ -634,6 +642,7 @@ func loadPlayerWeeks(ctx context.Context, db *sql.DB, playerID int64) ([]PlayerW
 			&stats.Season,
 			&stats.Week,
 			&stats.FantasyPointsHalfPPR,
+			&stats.PassingYards,
 			&stats.Targets,
 			&stats.Receptions,
 			&stats.RushingAttempts,

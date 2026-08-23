@@ -33,6 +33,7 @@ type seasonStatsResponse struct {
 	GamesPlayed            int      `json:"games_played"`
 	FantasyPointsHalfPPR   float64  `json:"fantasy_points_half_ppr"`
 	AverageFantasyPoints   *float64 `json:"average_fantasy_points"`
+	PassingYards           int      `json:"passing_yards"`
 	Targets                int      `json:"targets"`
 	TargetsPerGame         *float64 `json:"targets_per_game"`
 	Receptions             int      `json:"receptions"`
@@ -131,6 +132,7 @@ type weeklyStatsResponse struct {
 	Season               int     `json:"season"`
 	Week                 int     `json:"week"`
 	FantasyPointsHalfPPR float64 `json:"fantasy_points_half_ppr"`
+	PassingYards         int     `json:"passing_yards"`
 	Targets              int     `json:"targets"`
 	Receptions           int     `json:"receptions"`
 	RushingAttempts      int     `json:"rushing_attempts"`
@@ -261,6 +263,7 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 			Season:               week.Season,
 			Week:                 week.Week,
 			FantasyPointsHalfPPR: week.FantasyPointsHalfPPR,
+			PassingYards:         week.PassingYards,
 			Targets:              week.Targets,
 			Receptions:           week.Receptions,
 			RushingAttempts:      week.RushingAttempts,
@@ -346,6 +349,7 @@ func newSeasonStatsResponse(stats *database.PlayerSeasonStats) *seasonStatsRespo
 		GamesPlayed:            stats.GamesPlayed,
 		FantasyPointsHalfPPR:   stats.FantasyPointsHalfPPR,
 		AverageFantasyPoints:   averageFantasyPoints,
+		PassingYards:           stats.PassingYards,
 		Targets:                stats.Targets,
 		TargetsPerGame:         targetsPerGame,
 		Receptions:             stats.Receptions,

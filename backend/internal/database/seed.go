@@ -78,6 +78,7 @@ type seededPlayer struct {
 // accumulator used to produce the matching season summary.
 type weeklySample struct {
 	FantasyPoints       float64
+	PassingYards        int
 	Targets             int
 	Receptions          int
 	RushingAttempts     int
@@ -309,6 +310,7 @@ func seedPlayerStats(
 	for week := 1; week <= 8; week++ {
 		stats := makeWeeklySample(position, playerNumber, week)
 		season.FantasyPoints += stats.FantasyPoints
+		season.PassingYards += stats.PassingYards
 		season.Targets += stats.Targets
 		season.Receptions += stats.Receptions
 		season.RushingAttempts += stats.RushingAttempts
@@ -323,6 +325,7 @@ func seedPlayerStats(
 				season,
 				week,
 				fantasy_points_half_ppr,
+				passing_yards,
 				targets,
 				receptions,
 				rushing_attempts,
@@ -330,9 +333,10 @@ func seedPlayerStats(
 				rushing_yards,
 				receiving_touchdowns,
 				rushing_touchdowns
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (player_id, season, week) DO UPDATE SET
 				fantasy_points_half_ppr = excluded.fantasy_points_half_ppr,
+				passing_yards = excluded.passing_yards,
 				targets = excluded.targets,
 				receptions = excluded.receptions,
 				rushing_attempts = excluded.rushing_attempts,
@@ -345,6 +349,7 @@ func seedPlayerStats(
 			sampleStatsSeason,
 			week,
 			stats.FantasyPoints,
+			stats.PassingYards,
 			stats.Targets,
 			stats.Receptions,
 			stats.RushingAttempts,
@@ -364,6 +369,7 @@ func seedPlayerStats(
 			season,
 			games_played,
 			fantasy_points_half_ppr,
+			passing_yards,
 			targets,
 			receptions,
 			rushing_attempts,
@@ -371,10 +377,11 @@ func seedPlayerStats(
 			rushing_yards,
 			receiving_touchdowns,
 			rushing_touchdowns
-		) VALUES (?, ?, 8, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, 8, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (player_id, season) DO UPDATE SET
 			games_played = excluded.games_played,
 			fantasy_points_half_ppr = excluded.fantasy_points_half_ppr,
+			passing_yards = excluded.passing_yards,
 			targets = excluded.targets,
 			receptions = excluded.receptions,
 			rushing_attempts = excluded.rushing_attempts,
@@ -386,6 +393,7 @@ func seedPlayerStats(
 		playerID,
 		sampleStatsSeason,
 		season.FantasyPoints,
+		season.PassingYards,
 		season.Targets,
 		season.Receptions,
 		season.RushingAttempts,
@@ -409,6 +417,7 @@ func makeWeeklySample(position string, playerNumber, week int) weeklySample {
 
 	switch position {
 	case "QB":
+		stats.PassingYards = 205 + ((playerNumber*13 + week*17) % 145)
 		stats.RushingAttempts = 2 + ((playerNumber + week) % 5)
 		stats.RushingYards = stats.RushingAttempts * (3 + (week % 3))
 		stats.RushingTouchdowns = (playerNumber + week) % 2
