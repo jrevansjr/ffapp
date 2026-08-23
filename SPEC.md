@@ -91,7 +91,7 @@ Prioritize quick draft decisions.
 
 Bare settings page. Plain controlled inputs, no form libraries.
 
-Fields: Sleeper username, league ID, draft ID, polling enabled, polling interval (ms). Buttons: `Save Settings`, `Sync Players` (fetches `/players/nfl` once, upserts local players, shows last-synced time), and optionally `Refresh Draft State` if easy. Small save-success / validation messages. Validate: interval is a positive reasonable number; IDs are strings; empty values allowed during setup. **No token / API key / password / credential fields exist.**
+Fields: Sleeper username, league ID, draft ID, polling enabled, polling interval (ms). Button: `Save Settings`, plus optionally `Refresh Draft State` once live synchronization exists. The last player-import time may be shown read-only. Player-pool imports are deliberate CLI operations, not browser actions. Small save-success / validation messages. Validate: interval is a positive reasonable number; IDs are strings; empty values allowed during setup. **No Sleeper token / API key / password / credential fields exist.**
 
 ---
 
@@ -109,7 +109,6 @@ GET  /api/players/{id}                 → { player, season, adp, tier, odds, we
 GET  /api/draft/state                  → see below
 POST /api/draft/manual-picks           → { "player_id": 42 }
 DELETE /api/draft/manual-picks/{id}
-POST /api/players/sync                 → triggers the one-shot Sleeper players sync
 ```
 
 `/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, three ADPs, 2025 season summary fields, 2026 odds lines, tier, `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls Sleeper; importing the player pool and polling draft picks are separate operations.
@@ -138,11 +137,11 @@ Frontend: one TanStack Query per concern — `["settings"]`, `["players"]`, `["p
 Normalized; season/source-varying data in its own tables. SQLite types and conventions per AGENTS.md §4 (`INTEGER PRIMARY KEY` ids, `TEXT` Sleeper IDs and ISO-8601 UTC timestamps, `REAL` for points/ADP/lines, `INTEGER` 0/1 booleans). Migrations are the source of truth once written — don't add columns with no current or near-term use.
 
 - **`nfl_teams`** — `id, abbreviation (unique), name`. No win totals here (season/source-varying → `odds`).
-- **`players`** — core identity (`id, sleeper_player_id, first_name, last_name, position, nfl_team_id, birth_date, active`), Sleeper profile/status (`status, number, college, height, weight, birth_country, years_exp, depth_chart_position, depth_chart_order, injury_status, injury_start_date, practice_participation`), and nullable cross-provider IDs (`espn_id, sportradar_id, rotowire_id, rotoworld_id, yahoo_id, fantasy_data_id, stats_id`). External IDs are TEXT even when an upstream payload uses numbers. Store birth date and compute age; store `years_exp` directly. No availability here.
+- **`players`** — core identity (`id, sleeper_player_id, first_name, last_name, position, nfl_team_id, birth_date, active`), Sleeper profile/status (`status, number, college, height, weight, birth_country, years_exp, depth_chart_position, depth_chart_order, injury_status, injury_start_date, practice_participation`), and nullable cross-provider IDs (`gsis_id, espn_id, sportradar_id, rotowire_id, rotoworld_id, yahoo_id, fantasy_data_id, stats_id`). External IDs are TEXT even when an upstream payload uses numbers. `gsis_id` is the intended exact nflverse join. Store birth date and compute age; store `years_exp` directly. No availability here.
 - **`player_season_stats`** — key `(player_id, season)`: games_played, fantasy_points_half_ppr, passing_yards, targets, receptions, rushing_attempts, receiving_yards, rushing_yards, receiving_touchdowns, rushing_touchdowns. Derive per-game metrics; don't store them.
-- **`player_week_stats`** — key `(player_id, season, week)`: same stat fields. Storing weekly half-PPR points directly is fine for sample data; if raw stats are ingested later, calculate points with one small explicit function.
+- **`player_week_stats`** — key `(player_id, season, week)`: same stat fields. The approved stats importer calculates half-PPR points with one small explicit function from raw weekly stats.
 - **`player_adp`** — key `(player_id, season, source)`: adp, updated_at. Sources: `fantasypros`, `sleeper`, `underdog`.
-- **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. Initial source is sample only; no tier algorithm.
+- **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. Source is chosen explicitly during M6.4; no tier algorithm.
 - **`odds`** — one generic table: `id, season, source, market, player_id (nullable), nfl_team_id (nullable), line, over_price (nullable), under_price (nullable), captured_at`. Exactly one of player/team identifies the subject. Markets like `total_touchdowns`, `regular_season_wins`. No consensus math, no ingestion yet.
 - **`drafts`** — `id, sleeper_draft_id, sleeper_league_id, mode (live|manual), status, created_at, updated_at`. Live is the main path.
 - **`draft_picks`** — `id, draft_id, pick_number, round (nullable), draft_slot (nullable), roster_id (nullable), picked_by (nullable), sleeper_player_id, player_id (nullable), source (sleeper|manual), created_at`. Preserve `sleeper_player_id` even when unmapped; idempotent upserts; no duplicate active picks for one player in one draft.
@@ -154,19 +153,22 @@ Indexes when they're free to add: unique `players.sleeper_player_id`; `players.p
 
 ---
 
-## Seed data
+## Real-data ingestion workflow
 
-The first useful version must not depend on external providers. Seeding is `go run ./cmd/seed`: a small Go program that inserts clearly fictional players with clearly synthetic stats (real NFL team abbreviations are fine; label as sample data in README/UI). It must be idempotent — re-running never duplicates rows (upsert or wipe-and-reload sample-tagged data, whichever is simpler).
+M1's fictional seed was temporary scaffolding for M2–M5 and is retired in M6.1. Production data is built with `go run ./cmd/data`; small deterministic fixtures remain in `_test.go` files so automated tests never depend on external services.
 
-Seed at least: **~50–75 players** across QB/RB/WR/TE and many NFL teams (enough that Draft Day filtering, tiers, and pick-by-pick removal actually look and behave like a draft); 2025 season stats, including QB passing yards; 6–8 weeks of 2025 weekly stats per player; all three ADP sources; 2026 sample tiers; 2026 sample player TD lines and team win totals; one local draft with a few sample picks. Generating the synthetic values in a loop with simple randomization is encouraged — don't hand-write 75 players, and don't spend effort making fake data realistic. Spend it making every UI state reachable.
+Each dataset has one dedicated Go loader and is imported only by an explicit command. Imports never run on server startup, page load, or an API request. Loaders validate before committing, use idempotent upserts, preserve source/season/capture metadata, and report inserted, updated, skipped, and unmatched records. A failed refresh keeps the last committed data. `rebuild --confirm` backs up the existing SQLite database, builds and validates a temporary replacement, and installs it only after success.
 
----
+Before each M6.x dataset begins, present for approval: the target table/columns; primary and fallback sources; cost, credentials, terms/access, and freshness; ingestion method; files and dependencies; identity matching; and acceptance checks. Prefer official APIs or provider downloads. Never bypass authentication or paywalls, guess identity matches silently, or switch sources without reporting the problem and obtaining approval. Provider credentials, if later chosen, are environment variables documented through `.env.example`, never committed or stored in application settings.
 
-## Future data ingestion (context only — do not build)
+Current source direction, subject to the per-milestone approval gate:
 
-Real providers are intentionally undecided: FantasyPros/Sleeper/Underdog ADP, 2025 real stats, tiers (manual/imported/proprietary/calculated), sportsbook TD and win totals. CSV import is an acceptable future escape hatch. When ingestion eventually happens: normalize by Sleeper player ID where possible; preserve source, season, and capture time; never overwrite one source's values with another's; surface unconfident player matches instead of guessing silently. Build no provider clients before a provider is chosen.
-
-Note: syncing the **player pool** from Sleeper's free `/players/nfl` endpoint is *in scope* (Milestone 6) — it's identity data the draft board can't function without, not provider stat ingestion.
+- NFL teams: reviewed static 32-team list.
+- Players: Sleeper `/players/nfl`, cached locally because Sleeper requests at most one fetch per day.
+- 2025 weekly/season stats: nflverse, joined by GSIS ID.
+- ADP: official FantasyPros data for FantasyPros Aggregate/provider values; an official or permitted source for Underdog; CSV is an acceptable fallback.
+- Tiers: official FantasyPros or permitted DraftSharks data; reviewed CSV is an acceptable fallback. Tiers are never generated recommendations.
+- Odds: structured season-futures API such as SportsDataIO or reviewed sportsbook CSV. Store named sources; consensus methodology requires a separate decision.
 
 ---
 
@@ -186,7 +188,17 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M5 — Draft Day (sample).** Available table, local name/position/NFL-team/tier filters, row selection, inspector, two position-aware charts, summary stats, ADP/tier/odds display, and settings-aware sample status. *Done when:* selection updates the inspector, charts handle sample data, sample-taken players vanish from Draft Day and gray on Overview.
 
-**M6 — Real player pool.** Sleeper client foundations + Admin `Sync Players` against `/players/nfl`. *Done when:* one click populates real NFL players (upsert — re-running doesn't duplicate), sync time is recorded and displayed, synthetic sample players can coexist or be cleanly replaced (document the choice).
+**M6.1 — Real teams + player pool.** `cmd/data` foundation, reviewed NFL-team loader, cached Sleeper `/players/nfl` client, active QB/RB/WR/TE upserts, GSIS identity, safe rebuild, and production-seed retirement. *Done when:* a confirmed rebuild preserves a recoverable backup and produces 32 teams plus real active fantasy players; re-running is idempotent and respects the once-daily cache; external IDs/profile fields persist; sample IDs/data paths are gone; stats/ADP/tiers/odds/drafts/picks remain empty; Overview and Draft Day show real players with unavailable future values as `—`.
+
+**M6.2 — 2025 historical stats.** Choose/approve the stats source, then populate weekly and season stats for the 2025 regular season with exact identity matches and one explicit 0.5-PPR calculation. *Done when:* weekly charts and season summaries use consistent real rows, repeated imports are stable, and unmatched IDs are reported rather than guessed.
+
+**M6.3 — ADP.** Choose/approve each ADP source and populate `player_adp` without combining providers. *Done when:* named 2026 sources are persisted independently, timestamps/provenance are present, and the three UI columns use their intended sources.
+
+**M6.4 — Tiers.** Choose/approve a half-PPR tier source and populate `player_tiers`. *Done when:* the UI shows externally supplied 2026 position tiers with explicit provenance and no app-generated recommendation logic.
+
+**M6.5 — Season odds.** Choose/approve sources for team win totals and player touchdown lines and populate `odds`. *Done when:* both markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
+
+**M6.6 — Full real-data audit.** Register all approved M6.x loaders in the one build/rebuild entry point and verify completeness, foreign keys, ID coverage, and UI behavior. *Done when:* a clean rebuild produces the approved real reference dataset with no synthetic rows and all read APIs/UI states remain healthy.
 
 **M7 — Live draft sync.** Poller + `/api/draft/state`. *Done when:* entering a real draft ID makes Draft Day follow it; exactly one poller runs when enabled+configured; changing ID/interval or disabling cleanly restarts/stops it; new picks remove players without reload; repeated polling never duplicates picks; unknown IDs don't crash sync; Sleeper outage falls back to last known state with a stale flag; polling is toggleable and the interval changes without recompiling. **A Sleeper CPU mock draft is the end-to-end test target — run one before the real draft.**
 
@@ -198,4 +210,4 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 ## Deferred, on purpose
 
-Single-binary build (Go serving `frontend/dist` via `embed.FS` — the Vite proxy setup makes this a drop-in later), replay mode, fantasy roster caching, real data ingestion, drafted-by-roster display. Revisit after the season, if ever.
+Single-binary build (Go serving `frontend/dist` via `embed.FS` — the Vite proxy setup makes this a drop-in later), replay mode, fantasy roster caching, drafted-by-roster display. Revisit after the season, if ever.

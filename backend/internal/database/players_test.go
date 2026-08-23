@@ -13,16 +13,14 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	}
 	defer db.Close()
 	ctx := context.Background()
-	if err := SeedSampleData(ctx, db); err != nil {
-		t.Fatalf("SeedSampleData() error = %v", err)
-	}
+	loadPlayerQueryFixture(t, db)
 
 	players, err := ListPlayers(ctx, db, PlayerFilters{})
 	if err != nil {
 		t.Fatalf("ListPlayers() error = %v", err)
 	}
-	if len(players) != 60 {
-		t.Fatalf("player count = %d, want 60", len(players))
+	if len(players) != 4 {
+		t.Fatalf("player count = %d, want 4", len(players))
 	}
 	if players[0].Season == nil || players[0].FantasyProsADP == nil || players[0].Tier == nil {
 		t.Fatal("first player is missing seeded summary data")
@@ -37,12 +35,12 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPlayers(QB) error = %v", err)
 	}
-	if len(quarterbacks) != 12 {
-		t.Fatalf("QB count = %d, want 12", len(quarterbacks))
+	if len(quarterbacks) != 1 {
+		t.Fatalf("QB count = %d, want 1", len(quarterbacks))
 	}
 
 	if _, err := UpdateSettings(ctx, db, EditableSettings{
-		SleeperDraftID: "sample-draft-2026", PollingEnabled: true, PollingInterval: 2000,
+		SleeperDraftID: "fixture-draft", PollingEnabled: true, PollingInterval: 2000,
 	}); err != nil {
 		t.Fatalf("activate sample draft: %v", err)
 	}
@@ -50,8 +48,8 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPlayers(available) error = %v", err)
 	}
-	if len(available) != 54 {
-		t.Fatalf("available player count = %d, want 54", len(available))
+	if len(available) != 3 {
+		t.Fatalf("available player count = %d, want 3", len(available))
 	}
 
 	var takenID int64
@@ -67,11 +65,14 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if !detail.IsTaken {
 		t.Fatal("sample-picked player is_taken = false, want true")
 	}
-	if len(detail.Weekly) != 8 {
-		t.Fatalf("weekly row count = %d, want 8", len(detail.Weekly))
+	if len(detail.Weekly) != 2 {
+		t.Fatalf("weekly row count = %d, want 2", len(detail.Weekly))
 	}
 	if detail.Player.ProviderIDs.Sportradar == nil {
-		t.Fatal("detail Sportradar ID = nil, want seeded ID")
+		t.Fatal("detail Sportradar ID = nil, want fixture ID")
+	}
+	if detail.Player.ProviderIDs.GSIS == nil {
+		t.Fatal("detail GSIS ID = nil, want fixture ID")
 	}
 	if detail.Weekly[0].PassingYards == 0 {
 		t.Fatal("detail weekly passing yards = 0, want seeded QB yards")

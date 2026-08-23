@@ -59,6 +59,7 @@ type PlayerListItem struct {
 
 // ProviderIDs contains external identity hints retained from Sleeper.
 type ProviderIDs struct {
+	GSIS        *string
 	ESPN        *string
 	Sportradar  *string
 	Rotowire    *string
@@ -199,9 +200,9 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			season_stats.rushing_yards,
 			season_stats.receiving_touchdowns,
 			season_stats.rushing_touchdowns,
-			(SELECT line FROM odds WHERE player_id = players.id AND season = 2026 AND source = 'sample' AND market = 'total_touchdowns'),
-			(SELECT line FROM odds WHERE nfl_team_id = players.nfl_team_id AND season = 2026 AND source = 'sample' AND market = 'regular_season_wins'),
-			(SELECT tier FROM player_tiers WHERE player_id = players.id AND season = 2026 AND source = 'sample'),
+			(SELECT line FROM odds WHERE player_id = players.id AND season = 2026 AND market = 'total_touchdowns' ORDER BY captured_at DESC, source LIMIT 1),
+			(SELECT line FROM odds WHERE nfl_team_id = players.nfl_team_id AND season = 2026 AND market = 'regular_season_wins' ORDER BY captured_at DESC, source LIMIT 1),
+			(SELECT tier FROM player_tiers WHERE player_id = players.id AND season = 2026 ORDER BY updated_at DESC, source LIMIT 1),
 			` + takenPlayerExpression + ` AS is_taken
 		FROM players
 		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
@@ -356,7 +357,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 		status, college, height, weight, birthCountry          sql.NullString
 		depthPosition, injuryStatus, injuryStart, practice     sql.NullString
 		espnID, sportradarID, rotowireID, rotoworldID, yahooID sql.NullString
-		fantasyDataID, statsID                                 sql.NullString
+		fantasyDataID, statsID, gsisID                         sql.NullString
 		teamID, number, yearsExp, depthOrder                   sql.NullInt64
 		active, isTaken                                        int
 	)
@@ -391,6 +392,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 			players.yahoo_id,
 			players.fantasy_data_id,
 			players.stats_id,
+			players.gsis_id,
 			`+takenPlayerExpression+` AS is_taken
 		FROM players
 		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
@@ -425,6 +427,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 		&yahooID,
 		&fantasyDataID,
 		&statsID,
+		&gsisID,
 		&isTaken,
 	)
 	if err != nil {
@@ -451,6 +454,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 	detail.Player.InjuryStartDate = nullStringPointer(injuryStart)
 	detail.Player.PracticeParticipation = nullStringPointer(practice)
 	detail.Player.ProviderIDs = ProviderIDs{
+		GSIS:        nullStringPointer(gsisID),
 		ESPN:        nullStringPointer(espnID),
 		Sportradar:  nullStringPointer(sportradarID),
 		Rotowire:    nullStringPointer(rotowireID),
@@ -540,7 +544,9 @@ func loadPlayerTier(ctx context.Context, db *sql.DB, playerID int64) (*PlayerTie
 	err := db.QueryRowContext(ctx, `
 		SELECT season, source, tier, updated_at
 		FROM player_tiers
-		WHERE player_id = ? AND season = 2026 AND source = 'sample'
+		WHERE player_id = ? AND season = 2026
+		ORDER BY updated_at DESC, source
+		LIMIT 1
 	`, playerID).Scan(&tier.Season, &tier.Source, &tier.Tier, &tier.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -590,7 +596,9 @@ func loadOddsLine(
 	query := `
 		SELECT season, source, market, line, over_price, under_price, captured_at
 		FROM odds
-		WHERE ` + subjectColumn + ` = ? AND season = 2026 AND source = 'sample' AND market = ?
+		WHERE ` + subjectColumn + ` = ? AND season = 2026 AND market = ?
+		ORDER BY captured_at DESC, source
+		LIMIT 1
 	`
 	err := db.QueryRowContext(ctx, query, subjectID, market).Scan(
 		&line.Season,

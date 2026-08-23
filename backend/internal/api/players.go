@@ -71,6 +71,7 @@ type playerListResponse struct {
 }
 
 type providerIDsResponse struct {
+	GSIS        *string `json:"gsis"`
 	ESPN        *string `json:"espn"`
 	Sportradar  *string `json:"sportradar"`
 	Rotowire    *string `json:"rotowire"`
@@ -299,6 +300,7 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 			InjuryStartDate:       detail.Player.InjuryStartDate,
 			PracticeParticipation: detail.Player.PracticeParticipation,
 			ProviderIDs: providerIDsResponse{
+				GSIS:        detail.Player.ProviderIDs.GSIS,
 				ESPN:        detail.Player.ProviderIDs.ESPN,
 				Sportradar:  detail.Player.ProviderIDs.Sportradar,
 				Rotowire:    detail.Player.ProviderIDs.Rotowire,

@@ -46,7 +46,8 @@ The entire app is two processes and one file. No Docker.
 
 ```bash
 cd backend && go run ./cmd/server    # Go API on :8080 (runs migrations automatically at startup)
-cd backend && go run ./cmd/seed      # loads synthetic sample data (idempotent; safe to re-run)
+cd backend && go run ./cmd/data build # loads approved real reference datasets (idempotent)
+cd backend && go run ./cmd/data rebuild --confirm # backs up, rebuilds, validates, and replaces the DB
 cd frontend && npm run dev           # Vite dev server on :5173
 ```
 
@@ -141,7 +142,7 @@ GET /players/nfl                → full NFL player map, keyed by sleeper player
 
 Pick objects include: `round`, `pick_no`, `draft_slot`, `roster_id`, `picked_by`, `player_id` (string), and a `metadata` object with `first_name`, `last_name`, `position`, `team`. Persist `pick_no` ordering and the raw `player_id` always.
 
-`/players/nfl` is large and Sleeper asks that it be fetched **at most once per day**. Fetch it only from an explicit Admin "Sync Players" action, upsert into the local `players` table, and record the sync time. Never fetch it per request, on boot, or from the poller.
+`/players/nfl` is large and Sleeper asks that it be fetched **at most once per day**. Fetch it only from the explicit `cmd/data` player importer, cache the successful response locally, upsert into the local `players` table, and record the sync time. Never fetch it per request, on boot, from the browser, or from the poller.
 
 Sleeper IDs (player, league, draft, roster owner) are **strings** everywhere — DB, Go, JSON. Do not parse them as integers.
 
@@ -170,11 +171,12 @@ Sleeper IDs (player, league, draft, roster owner) are **strings** everywhere —
 backend/
   cmd/
     server/main.go
-    seed/main.go
+    data/main.go
   internal/
     api/        handlers, routes (split by subject when handlers.go grows)
     database/   db.go (open + migrate), players.go, settings.go, drafts.go
     sleeper/    client.go, types.go
+    importer/   explicit per-dataset loaders + rebuild orchestration
     draft/      state.go, poller.go
   migrations/   001_initial.sql, ...   (embedded, applied at startup)
   data/         draft.db               (gitignored)
@@ -220,7 +222,7 @@ Extract a component when it's reused, a page becomes hard to read, or a distinct
 
 Protect behavior that can break quietly, without turning the project into a testing exercise.
 
-**Backend (focused Go tests, table-driven where it helps):** median/average/high/low calculation; taken-player derivation; Sleeper pick parsing; idempotent pick merge; manual/Sleeper duplicate handling. Use `httptest.Server` for Sleeper-client tests, and an in-memory or temp-file SQLite database for storage tests — a real database in tests is cheap now; use it instead of mocks. No mock frameworks.
+**Backend (focused Go tests, table-driven where it helps):** median/average/high/low calculation; import parsing/idempotency/rollback; taken-player derivation; Sleeper pick parsing; idempotent pick merge; manual/Sleeper duplicate handling. Use `httptest.Server` for provider-client tests, and an in-memory or temp-file SQLite database for storage tests — a real database in tests is cheap now; use it instead of mocks. Production importers never provide test seed data. No mock frameworks.
 
 **Frontend:** TypeScript clean, lint clean, build clean. Component tests only if UI logic becomes genuinely complex later.
 
@@ -232,7 +234,7 @@ Do not build unless explicitly requested later: auth, accounts, multi-tenancy, c
 
 Do not build speculative features just because the schema could support them. If the project is ever deployed publicly, revisit security before treating it as safe.
 
-**Unresolved decisions — use sample data and clean extension points; ask before choosing:** real stats provider, ADP ingestion mechanisms, odds provider/consensus methodology, tier source and methodology, extra scoring settings, deployment.
+**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** stats provider, ADP ingestion mechanisms, odds provider/consensus methodology, tier source and methodology, extra scoring settings, deployment.
 
 ---
 
