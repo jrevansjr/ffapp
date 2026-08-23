@@ -41,7 +41,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestPlayerAndTeamEndpoints(t *testing.T) {
-	db, router := newSeededTestRouter(t)
+	db, router := newTestRouter(t)
 
 	teamsRecorder := serveRequest(router, http.MethodGet, "/api/nfl-teams", "")
 	if teamsRecorder.Code != http.StatusOK {
@@ -49,8 +49,8 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 	var teams []nflTeamResponse
 	decodeResponse(t, teamsRecorder, &teams)
-	if len(teams) != 32 {
-		t.Fatalf("NFL team count = %d, want 32", len(teams))
+	if len(teams) != 2 {
+		t.Fatalf("NFL team count = %d, want 2", len(teams))
 	}
 
 	playersRecorder := serveRequest(router, http.MethodGet, "/api/players?position=qb", "")
@@ -59,8 +59,8 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 	var players []playerListResponse
 	decodeResponse(t, playersRecorder, &players)
-	if len(players) != 12 {
-		t.Fatalf("QB response count = %d, want 12", len(players))
+	if len(players) != 1 {
+		t.Fatalf("QB response count = %d, want 1", len(players))
 	}
 	if players[0].Age == nil || players[0].Season == nil ||
 		players[0].Season.AverageFantasyPoints == nil || players[0].Season.TargetsPerGame == nil ||
@@ -81,15 +81,15 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 
 	if _, err := database.UpdateSettings(context.Background(), db, database.EditableSettings{
-		SleeperDraftID: "sample-draft-2026", PollingEnabled: true, PollingInterval: 2000,
+		SleeperDraftID: "fixture-draft", PollingEnabled: true, PollingInterval: 2000,
 	}); err != nil {
 		t.Fatalf("activate sample draft: %v", err)
 	}
 	availableRecorder := serveRequest(router, http.MethodGet, "/api/players?available_only=true", "")
 	var available []playerListResponse
 	decodeResponse(t, availableRecorder, &available)
-	if len(available) != 54 {
-		t.Fatalf("available response count = %d, want 54", len(available))
+	if len(available) != 3 {
+		t.Fatalf("available response count = %d, want 3", len(available))
 	}
 
 	var playerID int64
@@ -104,17 +104,18 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 	var detail playerDetailResponse
 	decodeResponse(t, detailRecorder, &detail)
-	if len(detail.Weekly) != 8 {
-		t.Fatalf("weekly response count = %d, want 8", len(detail.Weekly))
+	if len(detail.Weekly) != 2 {
+		t.Fatalf("weekly response count = %d, want 2", len(detail.Weekly))
 	}
 	if detail.WeeklySummary.Average == nil || detail.Player.ProviderIDs.Sportradar == nil ||
+		detail.Player.ProviderIDs.GSIS == nil ||
 		detail.Weekly[0].PassingYards == 0 {
 		t.Fatal("player detail is missing summary, provider identity, or passing yards")
 	}
 }
 
 func TestPlayerDetailHandlesMissingValues(t *testing.T) {
-	db, router := newSeededTestRouter(t)
+	db, router := newTestRouter(t)
 	result, err := db.Exec(`
 		INSERT INTO players (first_name, last_name, position, active)
 		VALUES (?, ?, ?, 1)
@@ -144,7 +145,7 @@ func TestPlayerDetailHandlesMissingValues(t *testing.T) {
 }
 
 func TestSettingsEndpointsValidateAndPersist(t *testing.T) {
-	db, router := newSeededTestRouter(t)
+	db, router := newTestRouter(t)
 	const syncTime = "2026-08-20T12:00:00Z"
 	if _, err := db.Exec(`UPDATE app_settings SET players_synced_at = ? WHERE id = 1`, syncTime); err != nil {
 		t.Fatalf("set player sync timestamp: %v", err)
@@ -193,7 +194,7 @@ func TestSettingsEndpointsValidateAndPersist(t *testing.T) {
 }
 
 func TestPlayerEndpointValidationAndNotFound(t *testing.T) {
-	_, router := newSeededTestRouter(t)
+	_, router := newTestRouter(t)
 	for _, path := range []string{
 		"/api/players?available_only=sometimes",
 		"/api/players/not-a-number",
@@ -254,17 +255,60 @@ func TestSeasonAveragesRequireGamesPlayed(t *testing.T) {
 	}
 }
 
-func newSeededTestRouter(t *testing.T) (*sql.DB, http.Handler) {
+func newTestRouter(t *testing.T) (*sql.DB, http.Handler) {
 	t.Helper()
 	db, err := database.Open(filepath.Join(t.TempDir(), "draft.db"))
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := database.SeedSampleData(context.Background(), db); err != nil {
-		t.Fatalf("seed test database: %v", err)
-	}
+	loadAPITestFixture(t, db)
 	return db, NewRouter(db)
+}
+
+func loadAPITestFixture(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO nfl_teams (id, abbreviation, name) VALUES
+			(1, 'ARI', 'Arizona Cardinals'),
+			(2, 'BUF', 'Buffalo Bills');
+		INSERT INTO players (
+			id, sleeper_player_id, first_name, last_name, position, nfl_team_id,
+			birth_date, active, years_exp, sportradar_id, gsis_id
+		) VALUES
+			(1, 'fixture-qb', 'Alex', 'Alpha', 'QB', 1, '1998-01-01', 1, 4, 'sr-qb', 'gsis-qb'),
+			(2, 'fixture-rb', 'Blair', 'Beta', 'RB', 1, '1999-01-01', 1, 3, 'sr-rb', 'gsis-rb'),
+			(3, 'fixture-wr', 'Casey', 'Gamma', 'WR', 2, '2000-01-01', 1, 2, 'sr-wr', 'gsis-wr'),
+			(4, 'fixture-te', 'Devon', 'Theta', 'TE', 2, '2001-01-01', 1, 1, 'sr-te', 'gsis-te');
+		INSERT INTO player_season_stats (
+			player_id, season, games_played, fantasy_points_half_ppr, passing_yards,
+			targets, receptions, rushing_attempts, receiving_yards, rushing_yards,
+			receiving_touchdowns, rushing_touchdowns
+		) VALUES (1, 2025, 2, 40, 500, 0, 0, 8, 0, 30, 0, 1);
+		INSERT INTO player_week_stats (
+			player_id, season, week, fantasy_points_half_ppr, passing_yards,
+			targets, receptions, rushing_attempts, receiving_yards, rushing_yards,
+			receiving_touchdowns, rushing_touchdowns
+		) VALUES
+			(1, 2025, 1, 18, 220, 0, 0, 3, 0, 10, 0, 0),
+			(1, 2025, 2, 22, 280, 0, 0, 5, 0, 20, 0, 1);
+		INSERT INTO player_adp (player_id, season, source, adp, updated_at)
+		VALUES (1, 2026, 'fantasypros', 12.5, '2026-08-01T00:00:00Z');
+		INSERT INTO player_tiers (player_id, season, source, tier, updated_at)
+		VALUES (1, 2026, 'fixture', 2, '2026-08-01T00:00:00Z');
+		INSERT INTO odds (season, source, market, player_id, line, captured_at)
+		VALUES (2026, 'fixture', 'total_touchdowns', 1, 1.5, '2026-08-01T00:00:00Z');
+		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)
+		VALUES (2026, 'fixture', 'regular_season_wins', 1, 8.5, '2026-08-01T00:00:00Z');
+		INSERT INTO drafts (id, sleeper_draft_id, mode, status, created_at, updated_at)
+		VALUES (1, 'fixture-draft', 'live', 'mock', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
+		INSERT INTO draft_picks (
+			draft_id, pick_number, sleeper_player_id, player_id, source, created_at
+		) VALUES (1, 1, 'fixture-qb', 1, 'sleeper', '2026-08-01T00:00:00Z');
+	`)
+	if err != nil {
+		t.Fatalf("load API test fixture: %v", err)
+	}
 }
 
 func serveRequest(router http.Handler, method, path, body string) *httptest.ResponseRecorder {

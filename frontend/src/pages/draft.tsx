@@ -7,7 +7,6 @@ import PlayerInspector from "@/components/player-inspector"
 import { getNFLTeams, getPlayers, getSettings } from "@/lib/api"
 
 const positions = ["QB", "RB", "WR", "TE"]
-const sampleDraftID = "sample-draft-2026"
 const controlClassName =
   "mt-1.5 block h-9 w-full rounded-md border border-border bg-card px-2.5 text-sm outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
 
@@ -122,8 +121,7 @@ export default function DraftPage() {
             <div>
               <p className="font-medium">No active Sleeper draft configured.</p>
               <p className="mt-1 text-muted-foreground">
-                All players are available. Use{" "}
-                <code className="rounded bg-muted px-1">{sampleDraftID}</code> to exercise sample picks.
+                All imported players are available. Live Sleeper synchronization arrives in M7.
               </p>
             </div>
             <Link
@@ -134,17 +132,7 @@ export default function DraftPage() {
             </Link>
           </div>
         )}
-        {settings.data && draftID === sampleDraftID && (
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-neutral-900 px-2.5 py-1 text-xs font-semibold text-white">
-              Sample mode
-            </span>
-            <p>
-              Showing persisted picks for <code>{sampleDraftID}</code>. No Sleeper requests are made.
-            </p>
-          </div>
-        )}
-        {settings.data && draftID !== "" && draftID !== sampleDraftID && (
+        {settings.data && draftID !== "" && (
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">Local data</span>
             <p>

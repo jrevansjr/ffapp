@@ -1,5 +1,5 @@
 // Package database owns the application's shared SQLite handle, embedded
-// migrations, default settings, and local sample-data writes.
+// migrations, default settings, and read/write queries.
 package database
 
 import (

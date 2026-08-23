@@ -81,6 +81,7 @@ export interface PlayerFilters {
 }
 
 export interface PlayerProviderIDs {
+  gsis: string | null
   espn: string | null
   sportradar: string | null
   rotowire: string | null

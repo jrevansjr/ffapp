@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
 	"testing"
@@ -125,133 +124,21 @@ func TestOpenUpgradesExistingPlayerRows(t *testing.T) {
 		name       string
 		yearsExp   sql.NullInt64
 		sportradar sql.NullString
+		gsis       sql.NullString
 	)
 	if err := upgraded.QueryRow(`
-		SELECT first_name, years_exp, sportradar_id
+		SELECT first_name, years_exp, sportradar_id, gsis_id
 		FROM players
 		WHERE sleeper_player_id = ?
-	`, "existing-player").Scan(&name, &yearsExp, &sportradar); err != nil {
+	`, "existing-player").Scan(&name, &yearsExp, &sportradar, &gsis); err != nil {
 		t.Fatalf("load upgraded player: %v", err)
 	}
 	if name != "Existing" {
 		t.Fatalf("preserved first_name = %q, want Existing", name)
 	}
-	if yearsExp.Valid || sportradar.Valid {
-		t.Fatalf("new optional fields = %v, %v; want NULL", yearsExp, sportradar)
+	if yearsExp.Valid || sportradar.Valid || gsis.Valid {
+		t.Fatalf("new optional fields = %v, %v, %v; want NULL", yearsExp, sportradar, gsis)
 	}
-}
-
-// TestSeedSampleDataIsIdempotent protects stable row counts and relationships
-// across repeated seed runs using SQLite rather than storage mocks.
-func TestSeedSampleDataIsIdempotent(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "draft.db"))
-	if err != nil {
-		t.Fatalf("Open() error = %v", err)
-	}
-	defer db.Close()
-
-	if err := SeedSampleData(context.Background(), db); err != nil {
-		t.Fatalf("first SeedSampleData() error = %v", err)
-	}
-	firstCounts := sampleTableCounts(t, db)
-
-	if err := SeedSampleData(context.Background(), db); err != nil {
-		t.Fatalf("second SeedSampleData() error = %v", err)
-	}
-	secondCounts := sampleTableCounts(t, db)
-
-	wantCounts := map[string]int{
-		"nfl_teams":           32,
-		"players":             60,
-		"player_season_stats": 60,
-		"player_week_stats":   480,
-		"player_adp":          180,
-		"player_tiers":        60,
-		"odds":                92,
-		"drafts":              1,
-		"draft_picks":         6,
-		"app_settings":        1,
-	}
-	for table, want := range wantCounts {
-		if firstCounts[table] != want {
-			t.Errorf("%s count after first seed = %d, want %d", table, firstCounts[table], want)
-		}
-		if secondCounts[table] != firstCounts[table] {
-			t.Errorf(
-				"%s count after second seed = %d, want stable count %d",
-				table,
-				secondCounts[table],
-				firstCounts[table],
-			)
-		}
-	}
-
-	var joinedWeeklyRows int
-	if err := db.QueryRow(`
-		SELECT COUNT(*)
-		FROM player_week_stats AS weekly
-		JOIN players ON players.id = weekly.player_id
-		JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
-	`).Scan(&joinedWeeklyRows); err != nil {
-		t.Fatalf("count joined weekly rows: %v", err)
-	}
-	if joinedWeeklyRows != 480 {
-		t.Fatalf("joined weekly row count = %d, want 480", joinedWeeklyRows)
-	}
-
-	var (
-		status, college, espnID, sportradarID string
-		yearsExp                              int
-	)
-	if err := db.QueryRow(`
-		SELECT status, college, years_exp, espn_id, sportradar_id
-		FROM players
-		WHERE sleeper_player_id = ?
-	`, "sample-player-001").Scan(
-		&status, &college, &yearsExp, &espnID, &sportradarID,
-	); err != nil {
-		t.Fatalf("load seeded profile fields: %v", err)
-	}
-	if status != "Active" || college == "" || yearsExp != 1 ||
-		espnID != "sample-espn-001" || sportradarID != "sample-sportradar-001" {
-		t.Fatalf(
-			"seeded profile = %q, %q, %d, %q, %q; want deterministic values",
-			status, college, yearsExp, espnID, sportradarID,
-		)
-	}
-
-	rows, err := db.Query("PRAGMA foreign_key_check")
-	if err != nil {
-		t.Fatalf("run foreign key check: %v", err)
-	}
-	defer rows.Close()
-	if rows.Next() {
-		t.Fatal("foreign_key_check returned a violation")
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("read foreign key check results: %v", err)
-	}
-}
-
-func sampleTableCounts(t *testing.T, db *sql.DB) map[string]int {
-	t.Helper()
-	tables := []string{
-		"nfl_teams",
-		"players",
-		"player_season_stats",
-		"player_week_stats",
-		"player_adp",
-		"player_tiers",
-		"odds",
-		"drafts",
-		"draft_picks",
-		"app_settings",
-	}
-	counts := make(map[string]int, len(tables))
-	for _, table := range tables {
-		counts[table] = countRows(t, db, table)
-	}
-	return counts
 }
 
 func countRows(t *testing.T, db *sql.DB, table string) int {
