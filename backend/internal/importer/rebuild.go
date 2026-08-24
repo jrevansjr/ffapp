@@ -20,7 +20,7 @@ type RebuildResult struct {
 	DBPath     string
 }
 
-// Rebuild constructs and validates a new M6.1 database before replacing the
+// Rebuild constructs and validates a new M6.2 database before replacing the
 // configured database. The caller must require explicit user confirmation.
 func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 	if err := os.MkdirAll(filepath.Dir(runner.DBPath), 0o755); err != nil {
@@ -49,7 +49,7 @@ func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 			err,
 		)
 	}
-	if err := validateM61Database(temporaryPath); err != nil {
+	if err := validateM62Database(temporaryPath); err != nil {
 		return RebuildResult{}, fmt.Errorf(
 			"validate replacement database (existing database preserved; inspect %s): %w",
 			temporaryPath,
@@ -98,7 +98,7 @@ func (runner *Runner) backupCurrentDatabase() (string, error) {
 	return backupPath, nil
 }
 
-func validateM61Database(dbPath string) error {
+func validateM62Database(dbPath string) error {
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return err
@@ -140,9 +140,89 @@ func validateM61Database(dbPath string) error {
 	if invalidPlayers != 0 {
 		return fmt.Errorf("found %d invalid or sample player rows", invalidPlayers)
 	}
+	weeklyCount, err := tableCount(db, "player_week_stats")
+	if err != nil {
+		return err
+	}
+	if weeklyCount < minimumRealWeeklyStatRows {
+		return fmt.Errorf("weekly stat count is %d; expected at least %d", weeklyCount, minimumRealWeeklyStatRows)
+	}
+	seasonCount, err := tableCount(db, "player_season_stats")
+	if err != nil {
+		return err
+	}
+	if seasonCount < minimumRealSeasonStatRows {
+		return fmt.Errorf("season stat count is %d; expected at least %d", seasonCount, minimumRealSeasonStatRows)
+	}
+	var coveredWeeks int
+	if err := db.QueryRow(`
+		SELECT COUNT(DISTINCT week)
+		FROM player_week_stats
+		WHERE season = ? AND week BETWEEN 1 AND 18
+	`, 2025).Scan(&coveredWeeks); err != nil {
+		return fmt.Errorf("validate weekly stat coverage: %w", err)
+	}
+	if coveredWeeks != 18 {
+		return fmt.Errorf("weekly stats cover %d weeks; expected 18", coveredWeeks)
+	}
+	var invalidStats int
+	if err := db.QueryRow(`
+		SELECT
+			(SELECT COUNT(*) FROM player_week_stats WHERE season != 2025 OR week NOT BETWEEN 1 AND 18) +
+			(SELECT COUNT(*) FROM player_season_stats WHERE season != 2025)
+	`).Scan(&invalidStats); err != nil {
+		return fmt.Errorf("validate stat seasons and weeks: %w", err)
+	}
+	if invalidStats != 0 {
+		return fmt.Errorf("found %d stats outside the M6.2 season/week scope", invalidStats)
+	}
+	var aggregateMismatches int
+	if err := db.QueryRow(`
+		WITH weekly AS (
+			SELECT
+				player_id, season, COUNT(*) AS games_played,
+				SUM(fantasy_points_half_ppr) AS fantasy_points_half_ppr,
+				SUM(targets) AS targets, SUM(receptions) AS receptions,
+				SUM(rushing_attempts) AS rushing_attempts,
+				SUM(receiving_yards) AS receiving_yards,
+				SUM(rushing_yards) AS rushing_yards,
+				SUM(receiving_touchdowns) AS receiving_touchdowns,
+				SUM(rushing_touchdowns) AS rushing_touchdowns,
+				SUM(passing_yards) AS passing_yards
+			FROM player_week_stats
+			WHERE season = 2025
+			GROUP BY player_id, season
+		)
+		SELECT COUNT(*)
+		FROM player_season_stats AS season
+		LEFT JOIN weekly
+			ON weekly.player_id = season.player_id AND weekly.season = season.season
+		WHERE season.season = 2025 AND (
+			weekly.player_id IS NULL OR
+			season.games_played != weekly.games_played OR
+			ABS(season.fantasy_points_half_ppr - weekly.fantasy_points_half_ppr) > 0.001 OR
+			season.targets != weekly.targets OR season.receptions != weekly.receptions OR
+			season.rushing_attempts != weekly.rushing_attempts OR
+			season.receiving_yards != weekly.receiving_yards OR
+			season.rushing_yards != weekly.rushing_yards OR
+			season.receiving_touchdowns != weekly.receiving_touchdowns OR
+			season.rushing_touchdowns != weekly.rushing_touchdowns OR
+			season.passing_yards != weekly.passing_yards
+		)
+	`).Scan(&aggregateMismatches); err != nil {
+		return fmt.Errorf("validate season stat aggregates: %w", err)
+	}
+	if aggregateMismatches != 0 {
+		return fmt.Errorf("found %d season rows inconsistent with weekly stats", aggregateMismatches)
+	}
+	distinctStatPlayers, err := countDistinctStatPlayers(db)
+	if err != nil {
+		return err
+	}
+	if seasonCount != distinctStatPlayers {
+		return fmt.Errorf("season stats do not contain exactly one row per player with weekly stats")
+	}
 	for _, table := range []string{
-		"player_season_stats",
-		"player_week_stats",
 		"player_adp",
 		"player_tiers",
 		"odds",
@@ -154,7 +234,7 @@ func validateM61Database(dbPath string) error {
 			return err
 		}
 		if count != 0 {
-			return fmt.Errorf("%s contains %d rows; M6.1 rebuild expects none", table, count)
+			return fmt.Errorf("%s contains %d rows; M6.2 rebuild expects none", table, count)
 		}
 	}
 	rows, err := db.Query(`PRAGMA foreign_key_check`)
@@ -166,6 +246,18 @@ func validateM61Database(dbPath string) error {
 		return fmt.Errorf("foreign key check found a violation")
 	}
 	return rows.Err()
+}
+
+func countDistinctStatPlayers(db *sql.DB) (int, error) {
+	var count int
+	if err := db.QueryRow(`
+		SELECT COUNT(DISTINCT player_id)
+		FROM player_week_stats
+		WHERE season = 2025
+	`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count players with weekly stats: %w", err)
+	}
+	return count, nil
 }
 
 func tableCount(db *sql.DB, table string) (int, error) {
