@@ -111,11 +111,11 @@ func TestRunnerCachesPlayerResponse(t *testing.T) {
 	}
 	runner.SleeperClient.BaseURL = server.URL
 	runner.SleeperClient.HTTPClient = server.Client()
-	if err := runner.Build(context.Background()); err != nil {
-		t.Fatalf("first Build() error = %v", err)
+	if err := runner.Load(context.Background(), "players", false); err != nil {
+		t.Fatalf("first Load() error = %v", err)
 	}
-	if err := runner.Build(context.Background()); err != nil {
-		t.Fatalf("second Build() error = %v", err)
+	if err := runner.Load(context.Background(), "players", false); err != nil {
+		t.Fatalf("second Load() error = %v", err)
 	}
 	if requests != 1 {
 		t.Fatalf("Sleeper request count = %d, want 1", requests)
@@ -130,7 +130,7 @@ func TestRunnerCachesPlayerResponse(t *testing.T) {
 	}
 }
 
-func TestRebuildPreservesExistingDatabaseWhenValidationFails(t *testing.T) {
+func TestRebuildPreservesExistingDatabaseWhenBuildFails(t *testing.T) {
 	root := t.TempDir()
 	dbPath := filepath.Join(root, "draft.db")
 	db, err := database.Open(dbPath)
@@ -151,12 +151,11 @@ func TestRebuildPreservesExistingDatabaseWhenValidationFails(t *testing.T) {
 	defer server.Close()
 	runner := NewRunner(dbPath, &bytes.Buffer{})
 	runner.CacheDir = filepath.Join(root, "cache")
-	runner.MinimumPlayerCount = 1
 	runner.Now = func() time.Time { return time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC) }
 	runner.SleeperClient.BaseURL = server.URL
 	runner.SleeperClient.HTTPClient = server.Client()
 	if _, err := runner.Rebuild(context.Background()); err == nil {
-		t.Fatal("Rebuild() error = nil, want validation failure")
+		t.Fatal("Rebuild() error = nil, want build failure")
 	}
 
 	preserved, err := database.Open(dbPath)

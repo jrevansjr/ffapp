@@ -255,7 +255,7 @@ func upsertPlayer(
 			yahoo_id = excluded.yahoo_id,
 			fantasy_data_id = excluded.fantasy_data_id,
 			stats_id = excluded.stats_id,
-			gsis_id = excluded.gsis_id
+			gsis_id = COALESCE(excluded.gsis_id, players.gsis_id)
 	`,
 		sleeperID,
 		player.FirstName.Value,

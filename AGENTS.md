@@ -176,6 +176,7 @@ backend/
     api/        handlers, routes (split by subject when handlers.go grows)
     database/   db.go (open + migrate), players.go, settings.go, drafts.go
     sleeper/    client.go, types.go
+    nflverse/   public weekly-stats and player-ID CSV clients/parsers
     importer/   explicit per-dataset loaders + rebuild orchestration
     draft/      state.go, poller.go
   migrations/   001_initial.sql, ...   (embedded, applied at startup)
@@ -234,7 +235,7 @@ Do not build unless explicitly requested later: auth, accounts, multi-tenancy, c
 
 Do not build speculative features just because the schema could support them. If the project is ever deployed publicly, revisit security before treating it as safe.
 
-**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** stats provider, ADP ingestion mechanisms, odds provider/consensus methodology, tier source and methodology, extra scoring settings, deployment.
+**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** ADP ingestion mechanisms, odds provider/consensus methodology, tier source and methodology, extra scoring settings, deployment.
 
 ---
 

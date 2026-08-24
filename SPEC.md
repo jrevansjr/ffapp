@@ -161,11 +161,11 @@ Each dataset has one dedicated Go loader and is imported only by an explicit com
 
 Before each M6.x dataset begins, present for approval: the target table/columns; primary and fallback sources; cost, credentials, terms/access, and freshness; ingestion method; files and dependencies; identity matching; and acceptance checks. Prefer official APIs or provider downloads. Never bypass authentication or paywalls, guess identity matches silently, or switch sources without reporting the problem and obtaining approval. Provider credentials, if later chosen, are environment variables documented through `.env.example`, never committed or stored in application settings.
 
-Current source direction, subject to the per-milestone approval gate:
+Current source direction, subject to the per-milestone approval gate where not already approved:
 
 - NFL teams: reviewed static 32-team list.
 - Players: Sleeper `/players/nfl`, cached locally because Sleeper requests at most one fetch per day.
-- 2025 weekly/season stats: nflverse, joined by GSIS ID.
+- 2025 weekly/season stats: approved nflverse weekly CSV, joined by GSIS ID. Missing local GSIS IDs may be backfilled only by exact Sleeper ID from the DynastyProcess crosswalk; names are diagnostic only. Season rows are derived from weekly rows. The fixed half-PPR formula is 0.04/pass yard, 4/pass TD, -2/interception, 0.1/rush or receiving yard, 6/rush or receiving TD, 0.5/reception, -2/fumble lost, and 2/passing, rushing, or receiving two-point conversion, with no bonuses.
 - ADP: official FantasyPros data for FantasyPros Aggregate/provider values; an official or permitted source for Underdog; CSV is an acceptable fallback.
 - Tiers: official FantasyPros or permitted DraftSharks data; reviewed CSV is an acceptable fallback. Tiers are never generated recommendations.
 - Odds: structured season-futures API such as SportsDataIO or reviewed sportsbook CSV. Store named sources; consensus methodology requires a separate decision.
@@ -190,7 +190,7 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M6.1 — Real teams + player pool.** `cmd/data` foundation, reviewed NFL-team loader, cached Sleeper `/players/nfl` client, active QB/RB/WR/TE upserts, GSIS identity, safe rebuild, and production-seed retirement. *Done when:* a confirmed rebuild preserves a recoverable backup and produces 32 teams plus real active fantasy players; re-running is idempotent and respects the once-daily cache; external IDs/profile fields persist; sample IDs/data paths are gone; stats/ADP/tiers/odds/drafts/picks remain empty; Overview and Draft Day show real players with unavailable future values as `—`.
 
-**M6.2 — 2025 historical stats.** Choose/approve the stats source, then populate weekly and season stats for the 2025 regular season with exact identity matches and one explicit 0.5-PPR calculation. *Done when:* weekly charts and season summaries use consistent real rows, repeated imports are stable, and unmatched IDs are reported rather than guessed.
+**M6.2 — 2025 historical stats.** Download/cache nflverse regular-season weekly data and the DynastyProcess ID crosswalk; calculate common half-PPR points; safely backfill missing GSIS IDs by exact Sleeper ID; transactionally replace 2025 weekly stats and derive season totals. *Done when:* all 18 weeks are validated; weekly charts and season summaries use consistent real rows; repeated imports are stable; provider/cache failures preserve committed data; identity conflicts, ambiguous mappings, and unmatched IDs are reported rather than guessed. No API key is required.
 
 **M6.3 — ADP.** Choose/approve each ADP source and populate `player_adp` without combining providers. *Done when:* named 2026 sources are persisted independently, timestamps/provenance are present, and the three UI columns use their intended sources.
 
