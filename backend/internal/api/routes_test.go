@@ -64,7 +64,8 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 	if players[0].Age == nil || players[0].Season == nil ||
 		players[0].Season.AverageFantasyPoints == nil || players[0].Season.TargetsPerGame == nil ||
-		players[0].ADP.FantasyPros == nil {
+		players[0].Draft.AggregateADP == nil || players[0].Draft.ECR == nil ||
+		players[0].Draft.PositionRank == nil || players[0].Draft.RankStdDev == nil {
 		t.Fatal("player list response is missing display data")
 	}
 	team := players[0].NFLTeam.Abbreviation
@@ -135,7 +136,7 @@ func TestPlayerDetailHandlesMissingValues(t *testing.T) {
 	var response playerDetailResponse
 	decodeResponse(t, recorder, &response)
 	if response.Player.NFLTeam != nil || response.Player.Age != nil || response.Season != nil ||
-		response.ADP.FantasyPros != nil || response.Tier != nil ||
+		response.Draft.AggregateADP != nil || response.Draft.ECR != nil || response.Draft.Tier != nil ||
 		response.Odds.Touchdowns != nil || response.WeeklySummary.Average != nil {
 		t.Fatal("missing optional values should be encoded as null")
 	}
@@ -294,8 +295,12 @@ func loadAPITestFixture(t *testing.T, db *sql.DB) {
 			(1, 2025, 2, 22, 280, 0, 0, 5, 0, 20, 0, 1);
 		INSERT INTO player_adp (player_id, season, source, adp, updated_at)
 		VALUES (1, 2026, 'fantasypros', 12.5, '2026-08-01T00:00:00Z');
+		INSERT INTO player_rankings (
+			player_id, season, source, overall_rank, position_rank,
+			rank_min, rank_max, rank_std_dev, updated_at
+		) VALUES (1, 2026, 'fantasypros', 10, 2, 7, 14, 2.5, '2026-08-01T00:00:00Z');
 		INSERT INTO player_tiers (player_id, season, source, tier, updated_at)
-		VALUES (1, 2026, 'fixture', 2, '2026-08-01T00:00:00Z');
+		VALUES (1, 2026, 'fantasypros', 2, '2026-08-01T00:00:00Z');
 		INSERT INTO odds (season, source, market, player_id, line, captured_at)
 		VALUES (2026, 'fixture', 'total_touchdowns', 1, 1.5, '2026-08-01T00:00:00Z');
 		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)

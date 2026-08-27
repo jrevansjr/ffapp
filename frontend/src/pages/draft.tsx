@@ -57,7 +57,9 @@ export default function DraftPage() {
     () =>
       Array.from(
         new Set(
-          (players.data ?? []).flatMap((player) => (player.tier === null ? [] : [player.tier])),
+          (players.data ?? []).flatMap((player) =>
+            player.draft.tier === null ? [] : [player.draft.tier],
+          ),
         ),
       ).sort((left, right) => left - right),
     [players.data],
@@ -70,7 +72,7 @@ export default function DraftPage() {
         (name === "" || fullName.includes(name)) &&
         (filters.position === "" || player.position === filters.position) &&
         (filters.team === "" || player.nfl_team?.abbreviation === filters.team) &&
-        (filters.tier === "" || player.tier === Number(filters.tier))
+        (filters.tier === "" || player.draft.tier === Number(filters.tier))
       )
     })
   }, [availablePlayers, filters])
@@ -247,7 +249,7 @@ export default function DraftPage() {
                 </select>
               </label>
               <label className="text-xs font-medium" htmlFor="draft-tier-filter">
-                Position tier
+                FantasyPros tier
                 <select
                   className={controlClassName}
                   id="draft-tier-filter"

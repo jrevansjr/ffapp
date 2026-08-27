@@ -29,16 +29,19 @@ Columns, in this order unless a small UX adjustment is clearly better:
 3. Team
 4. Years Experience (stored from Sleeper's `years_exp`)
 5. FantasyPros Aggregate ADP
-6. Sleeper ADP
-7. Underdog ADP
-8. 2026 Projected Position Tier
-9. 2025 Total Fantasy Points (0.5 PPR)
-10. 2025 Games Played
-11. 2025 Average Fantasy Points
-12. 2025 Targets Per Game
-13. 2025 Rushing Attempts Per Game (derived from season totals and games played)
-14. 2026 Vegas O/U TDs
-15. 2026 Vegas Team Win O/U
+6. FantasyPros overall Expert Consensus Ranking (ECR)
+7. FantasyPros position rank
+8. FantasyPros overall tier
+9. ECR minimum expert rank
+10. ECR maximum expert rank
+11. ECR standard deviation
+12. 2025 Total Fantasy Points (0.5 PPR)
+13. 2025 Games Played
+14. 2025 Average Fantasy Points
+15. 2025 Targets Per Game
+16. 2025 Rushing Attempts Per Game (derived from season totals and games played)
+17. 2026 Vegas O/U TDs
+18. 2026 Vegas Team Win O/U
 
 Numeric columns sort numerically; missing values render `—` (never `0`) and sort last. No server-side pagination or virtualization — the pool is small.
 
@@ -64,7 +67,7 @@ The primary live-draft page.
 
 **Status bar:** current mode (live / manual / not configured), last-synced time, and a stale indicator + message when Sleeper is unavailable. *Optional, only if it stays trivial:* current pick number and "picks until your turn" derived from `draft_order` + snake order in `GET /draft/{id}` — genuinely useful, but never at the cost of core functionality.
 
-**Available-player table.** Columns: Name, Position, NFL team, 2026 projected tier, FantasyPros Aggregate ADP. Default sort: Aggregate ADP ascending, missing ADP last. Filters: position, NFL team, tier; a search box only if simple. Taken players are **removed** from this table, updating as the draft-state query receives new picks — no full page refresh, ever.
+**Available-player table.** Columns: Name, Position, NFL team, FantasyPros overall tier, overall ECR, position rank, and Aggregate ADP. Default sort: Aggregate ADP ascending, missing ADP last. Filters: position, NFL team, tier; a search box only if simple. Taken players are **removed** from this table, updating as the draft-state query receives new picks — no full page refresh, ever.
 
 **Selection.** Clicking a row selects the player into a persistent right-side inspector (no navigation to a player page). Selecting another row replaces the inspector immediately. Selected player ID is local frontend state.
 
@@ -72,10 +75,11 @@ The primary live-draft page.
 
 Prioritize quick draft decisions.
 
-- **Header:** name, position, NFL team, 2026 tier, Aggregate ADP (Sleeper/Underdog ADP optionally nearby).
+- **Header:** name, position, NFL team, FantasyPros overall tier, Aggregate ADP, overall ECR, and position rank.
+- **Expert range:** minimum rank, maximum rank, and standard deviation from the experts included in the ECR response. These describe disagreement; they are not an app-generated recommendation.
 - **2025 weekly 0.5-PPR summary:** average, high, median, low. Median computed correctly. No weekly data → empty state, not fake zeros.
 - **Two compact Recharts line charts:** weekly fantasy points for every player, plus a position-specific volume chart. WR/TE show weekly targets; RB shows rushing attempts and targets together with separate axes; QB shows weekly passing yards. X = week, Y = value, tooltips required, optional average reference line if visually clean, no elaborate interactions.
-- **Additional data:** 2025 games played, receptions, targets/game; 2026 Vegas TD O/U and team win O/U; all three ADPs.
+- **Additional data:** 2025 games played, receptions, targets/game; 2026 Vegas TD O/U and team win O/U.
 - **Manual action:** `Mark Drafted` button (see fallback below).
 - No recommendation scores or decision logic of any kind.
 
@@ -111,7 +115,7 @@ POST /api/draft/manual-picks           → { "player_id": 42 }
 DELETE /api/draft/manual-picks/{id}
 ```
 
-`/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, three ADPs, 2025 season summary fields, 2026 odds lines, tier, `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls Sleeper; importing the player pool and polling draft picks are separate operations.
+`/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, Aggregate ADP, ECR/position rank/expert range, tier, 2025 season summary fields, 2026 odds lines, `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls a provider; imports and draft-pick polling are separate operations.
 
 `/api/draft/state` is a **read** endpoint: reads settings; returns a clean "not configured" state when no draft ID exists; reads the latest synchronized state from SQLite; resolves local player IDs; combines official + manual picks without duplicates; falls back to persisted picks when Sleeper is down. Shape (may evolve; preserve the concepts):
 
@@ -137,11 +141,12 @@ Frontend: one TanStack Query per concern — `["settings"]`, `["players"]`, `["p
 Normalized; season/source-varying data in its own tables. SQLite types and conventions per AGENTS.md §4 (`INTEGER PRIMARY KEY` ids, `TEXT` Sleeper IDs and ISO-8601 UTC timestamps, `REAL` for points/ADP/lines, `INTEGER` 0/1 booleans). Migrations are the source of truth once written — don't add columns with no current or near-term use.
 
 - **`nfl_teams`** — `id, abbreviation (unique), name`. No win totals here (season/source-varying → `odds`).
-- **`players`** — core identity (`id, sleeper_player_id, first_name, last_name, position, nfl_team_id, birth_date, active`), Sleeper profile/status (`status, number, college, height, weight, birth_country, years_exp, depth_chart_position, depth_chart_order, injury_status, injury_start_date, practice_participation`), and nullable cross-provider IDs (`gsis_id, espn_id, sportradar_id, rotowire_id, rotoworld_id, yahoo_id, fantasy_data_id, stats_id`). External IDs are TEXT even when an upstream payload uses numbers. `gsis_id` is the intended exact nflverse join. Store birth date and compute age; store `years_exp` directly. No availability here.
+- **`players`** — core identity (`id, sleeper_player_id, first_name, last_name, position, nfl_team_id, birth_date, active`), Sleeper profile/status (`status, number, college, height, weight, birth_country, years_exp, depth_chart_position, depth_chart_order, injury_status, injury_start_date, practice_participation`), and nullable cross-provider IDs (`gsis_id, fantasypros_id, espn_id, sportradar_id, rotowire_id, rotoworld_id, yahoo_id, fantasy_data_id, stats_id`). External IDs are TEXT even when an upstream payload uses numbers. `gsis_id` is the intended exact nflverse join; `fantasypros_id` is the intended exact FantasyPros ADP join. Store birth date and compute age; store `years_exp` directly. No availability here.
 - **`player_season_stats`** — key `(player_id, season)`: games_played, fantasy_points_half_ppr, passing_yards, targets, receptions, rushing_attempts, receiving_yards, rushing_yards, receiving_touchdowns, rushing_touchdowns. Derive per-game metrics; don't store them.
 - **`player_week_stats`** — key `(player_id, season, week)`: same stat fields. The approved stats importer calculates half-PPR points with one small explicit function from raw weekly stats.
-- **`player_adp`** — key `(player_id, season, source)`: adp, updated_at. Sources: `fantasypros`, `sleeper`, `underdog`.
-- **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. Source is chosen explicitly during M6.4; no tier algorithm.
+- **`player_adp`** — key `(player_id, season, source)`: adp, updated_at. M6.3 stores FantasyPros Aggregate ADP as source `fantasypros`; additional sources are optional future work.
+- **`player_rankings`** — key `(player_id, season, source)`: overall_rank, position_rank, rank_min, rank_max, rank_std_dev, updated_at. M6.3 stores all-position half-PPR Draft ECR as source `fantasypros`.
+- **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. M6.3 stores the overall tier supplied with FantasyPros Draft ECR; no tier algorithm.
 - **`odds`** — one generic table: `id, season, source, market, player_id (nullable), nfl_team_id (nullable), line, over_price (nullable), under_price (nullable), captured_at`. Exactly one of player/team identifies the subject. Markets like `total_touchdowns`, `regular_season_wins`. No consensus math, no ingestion yet.
 - **`drafts`** — `id, sleeper_draft_id, sleeper_league_id, mode (live|manual), status, created_at, updated_at`. Live is the main path.
 - **`draft_picks`** — `id, draft_id, pick_number, round (nullable), draft_slot (nullable), roster_id (nullable), picked_by (nullable), sleeper_player_id, player_id (nullable), source (sleeper|manual), created_at`. Preserve `sleeper_player_id` even when unmapped; idempotent upserts; no duplicate active picks for one player in one draft.
@@ -149,7 +154,7 @@ Normalized; season/source-varying data in its own tables. SQLite types and conve
 
 Deferred until actually needed (do not create now): `fantasy_rosters`, `fantasy_roster_players`, replay mode and its `replay` enum values. This is a draft-day tool for this season; roster snapshots and replay serve needs that may never materialize.
 
-Indexes when they're free to add: unique `players.sleeper_player_id`; `players.position`; `players.nfl_team_id`; `player_week_stats(player_id, season, week)`; `player_adp(player_id, season, source)`; `draft_picks(draft_id, sleeper_player_id)`; `odds(player_id, season, market)`; `odds(nfl_team_id, season, market)`. Nothing else prematurely.
+Indexes when they're free to add: unique `players.sleeper_player_id`; `players.position`; `players.nfl_team_id`; `player_week_stats(player_id, season, week)`; `player_adp(player_id, season, source)`; `player_rankings(player_id, season, source)`; `draft_picks(draft_id, sleeper_player_id)`; `odds(player_id, season, market)`; `odds(nfl_team_id, season, market)`. Nothing else prematurely.
 
 ---
 
@@ -166,8 +171,7 @@ Current source direction, subject to the per-milestone approval gate where not a
 - NFL teams: reviewed static 32-team list.
 - Players: Sleeper `/players/nfl`, cached locally because Sleeper requests at most one fetch per day.
 - 2025 weekly/season stats: approved nflverse weekly CSV, joined by GSIS ID. Missing local GSIS IDs may be backfilled only by exact Sleeper ID from the DynastyProcess crosswalk; names are diagnostic only. Season rows are derived from weekly rows. The fixed half-PPR formula is 0.04/pass yard, 4/pass TD, -2/interception, 0.1/rush or receiving yard, 6/rush or receiving TD, 0.5/reception, -2/fumble lost, and 2/passing, rushing, or receiving two-point conversion, with no bonuses.
-- ADP: official FantasyPros data for FantasyPros Aggregate/provider values; an official or permitted source for Underdog; CSV is an acceptable fallback.
-- Tiers: official FantasyPros or permitted DraftSharks data; reviewed CSV is an acceptable fallback. Tiers are never generated recommendations.
+- 2026 draft reference data: the official FantasyPros API with active paid HOF access supplies two independently cached all-position, half-PPR responses: Aggregate ADP (`type=ADP`) and Draft ECR (`type=DRAFT`). The ECR response supplies overall ECR, position rank, overall tier, minimum/maximum expert ranks, and standard deviation. Responses below the completeness threshold are rejected. Each authenticated request is a separate explicit CLI action requiring fresh user approval. Database loads and rebuilds are cache-only. Join FantasyPros player IDs through the DynastyProcess crosswalk already cached by M6.2; do not download another identity table and never name-match.
 - Odds: structured season-futures API such as SportsDataIO or reviewed sportsbook CSV. Store named sources; consensus methodology requires a separate decision.
 
 ---
@@ -192,13 +196,11 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M6.2 — 2025 historical stats.** Download/cache nflverse regular-season weekly data and the DynastyProcess ID crosswalk; calculate common half-PPR points; safely backfill missing GSIS IDs by exact Sleeper ID; transactionally replace 2025 weekly stats and derive season totals. *Done when:* all 18 weeks are validated; weekly charts and season summaries use consistent real rows; repeated imports are stable; provider/cache failures preserve committed data; identity conflicts, ambiguous mappings, and unmatched IDs are reported rather than guessed. No API key is required.
 
-**M6.3 — ADP.** Choose/approve each ADP source and populate `player_adp` without combining providers. *Done when:* named 2026 sources are persisted independently, timestamps/provenance are present, and the three UI columns use their intended sources.
+**M6.3 — FantasyPros draft data.** Cache the approved Aggregate ADP and Draft ECR API queries independently, backfill exact FantasyPros IDs through the DynastyProcess crosswalk, and transactionally populate `player_adp`, `player_rankings`, and `player_tiers`. *Done when:* 2026 Aggregate ADP, overall ECR, position rank, overall tier, expert minimum/maximum, and standard deviation are persisted with FantasyPros provenance/timestamps; failed or incomplete refreshes preserve the prior cache/database; no name guessing occurs; and Overview/Draft Day expose every field with missing values as `—`.
 
-**M6.4 — Tiers.** Choose/approve a half-PPR tier source and populate `player_tiers`. *Done when:* the UI shows externally supplied 2026 position tiers with explicit provenance and no app-generated recommendation logic.
+**M6.4 — Season odds.** Choose/approve sources for team win totals and player touchdown lines and populate `odds`. *Done when:* both markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
 
-**M6.5 — Season odds.** Choose/approve sources for team win totals and player touchdown lines and populate `odds`. *Done when:* both markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
-
-**M6.6 — Full real-data audit.** Register all approved M6.x loaders in the one build/rebuild entry point and verify completeness, foreign keys, ID coverage, and UI behavior. *Done when:* a clean rebuild produces the approved real reference dataset with no synthetic rows and all read APIs/UI states remain healthy.
+**M6.5 — Full real-data audit.** Register all approved M6.x loaders in the one build/rebuild entry point and verify completeness, foreign keys, ID coverage, and UI behavior. *Done when:* a clean rebuild produces the approved real reference dataset with no synthetic rows and all read APIs/UI states remain healthy.
 
 **M7 — Live draft sync.** Poller + `/api/draft/state`. *Done when:* entering a real draft ID makes Draft Day follow it; exactly one poller runs when enabled+configured; changing ID/interval or disabling cleanly restarts/stops it; new picks remove players without reload; repeated polling never duplicates picks; unknown IDs don't crash sync; Sleeper outage falls back to last known state with a stale flag; polling is toggleable and the interval changes without recompiling. **A Sleeper CPU mock draft is the end-to-end test target — run one before the real draft.**
 

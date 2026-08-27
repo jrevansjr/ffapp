@@ -40,9 +40,10 @@ type WeeklyDataset struct {
 // PlayerID maps the Sleeper identifier used by this app to nflverse's GSIS
 // identifier. Name is retained only for diagnostics; it is never used to match.
 type PlayerID struct {
-	SleeperID string
-	GSISID    string
-	Name      string
+	SleeperID     string
+	GSISID        string
+	FantasyProsID string
+	Name          string
 }
 
 // PlayerIDDataset includes usable identity rows and the total crosswalk rows.

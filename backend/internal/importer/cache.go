@@ -23,6 +23,12 @@ type statsCacheMetadata struct {
 	CrosswalkFile string `json:"crosswalk_file"`
 }
 
+type fantasyProsCacheMetadata struct {
+	Dataset   string `json:"dataset"`
+	FetchedAt string `json:"fetched_at"`
+	DataFile  string `json:"data_file"`
+}
+
 func readPlayerCache(cacheDir string) (sleeper.PlayersResponse, time.Time, []byte, error) {
 	body, err := os.ReadFile(filepath.Join(cacheDir, "sleeper-players.json"))
 	if err != nil {
@@ -109,6 +115,31 @@ func readStatsCache(
 	return weekly, playerIDs, fetchedAt, nil
 }
 
+// readCachedPlayerIDs reads only the identity half of the stats cache so a
+// FantasyPros load does not need to parse the much larger weekly-stat file.
+func readCachedPlayerIDs(cacheDir string) (nflverse.PlayerIDDataset, error) {
+	metadataBody, err := os.ReadFile(filepath.Join(cacheDir, "stats-2025.metadata.json"))
+	if err != nil {
+		return nflverse.PlayerIDDataset{}, err
+	}
+	var metadata statsCacheMetadata
+	if err := json.Unmarshal(metadataBody, &metadata); err != nil {
+		return nflverse.PlayerIDDataset{}, fmt.Errorf("decode stats cache metadata: %w", err)
+	}
+	if filepath.Base(metadata.CrosswalkFile) != metadata.CrosswalkFile {
+		return nflverse.PlayerIDDataset{}, fmt.Errorf("stats cache metadata contains an invalid crosswalk filename")
+	}
+	body, err := os.ReadFile(filepath.Join(cacheDir, metadata.CrosswalkFile))
+	if err != nil {
+		return nflverse.PlayerIDDataset{}, err
+	}
+	playerIDs, err := nflverse.ParsePlayerIDs(body)
+	if err != nil {
+		return nflverse.PlayerIDDataset{}, fmt.Errorf("parse cached player IDs: %w", err)
+	}
+	return playerIDs, nil
+}
+
 // writeStatsCache writes immutable, generation-named source files before
 // atomically moving the metadata pointer. A failed refresh therefore leaves the
 // previous complete cache generation readable.
@@ -143,6 +174,52 @@ func writeStatsCache(
 		return err
 	}
 	return nil
+}
+
+func readFantasyProsCache(cacheDir string, dataset string) ([]byte, time.Time, error) {
+	metadataPath := filepath.Join(cacheDir, "fantasypros-2026-"+dataset+".metadata.json")
+	metadataBody, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	var metadata fantasyProsCacheMetadata
+	if err := json.Unmarshal(metadataBody, &metadata); err != nil {
+		return nil, time.Time{}, fmt.Errorf("decode FantasyPros %s cache metadata: %w", dataset, err)
+	}
+	if metadata.Dataset != dataset || filepath.Base(metadata.DataFile) != metadata.DataFile {
+		return nil, time.Time{}, fmt.Errorf("FantasyPros %s cache metadata is inconsistent", dataset)
+	}
+	fetchedAt, err := time.Parse(time.RFC3339, metadata.FetchedAt)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("parse FantasyPros %s cache timestamp: %w", dataset, err)
+	}
+	body, err := os.ReadFile(filepath.Join(cacheDir, metadata.DataFile))
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	return body, fetchedAt, nil
+}
+
+func writeFantasyProsCache(cacheDir, dataset string, body []byte, fetchedAt time.Time) error {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return fmt.Errorf("create FantasyPros cache directory: %w", err)
+	}
+	generation := fetchedAt.UTC().Format("20060102T150405.000000000Z")
+	dataFile := "fantasypros-2026-" + dataset + "-" + generation + ".json"
+	if err := writeFileAtomically(filepath.Join(cacheDir, dataFile), body); err != nil {
+		return err
+	}
+	metadata, err := json.MarshalIndent(fantasyProsCacheMetadata{
+		Dataset: dataset, FetchedAt: fetchedAt.UTC().Format(time.RFC3339), DataFile: dataFile,
+	}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode FantasyPros %s cache metadata: %w", dataset, err)
+	}
+	metadata = append(metadata, '\n')
+	return writeFileAtomically(
+		filepath.Join(cacheDir, "fantasypros-2026-"+dataset+".metadata.json"),
+		metadata,
+	)
 }
 
 func writeFileAtomically(path string, data []byte) error {

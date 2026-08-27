@@ -20,7 +20,7 @@ type RebuildResult struct {
 	DBPath     string
 }
 
-// Rebuild constructs and validates a new M6.2 database before replacing the
+// Rebuild constructs and validates a new M6.3 database before replacing the
 // configured database. The caller must require explicit user confirmation.
 func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 	if err := os.MkdirAll(filepath.Dir(runner.DBPath), 0o755); err != nil {
@@ -49,7 +49,7 @@ func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 			err,
 		)
 	}
-	if err := validateM62Database(temporaryPath); err != nil {
+	if err := validateM63Database(temporaryPath); err != nil {
 		return RebuildResult{}, fmt.Errorf(
 			"validate replacement database (existing database preserved; inspect %s): %w",
 			temporaryPath,
@@ -98,7 +98,7 @@ func (runner *Runner) backupCurrentDatabase() (string, error) {
 	return backupPath, nil
 }
 
-func validateM62Database(dbPath string) error {
+func validateM63Database(dbPath string) error {
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return err
@@ -222,9 +222,66 @@ func validateM62Database(dbPath string) error {
 	if seasonCount != distinctStatPlayers {
 		return fmt.Errorf("season stats do not contain exactly one row per player with weekly stats")
 	}
+	for _, table := range []string{"player_adp", "player_rankings", "player_tiers"} {
+		var count int
+		if err := db.QueryRow(`
+			SELECT COUNT(*) FROM ` + table + ` WHERE season = 2026 AND source = 'fantasypros'
+		`).Scan(&count); err != nil {
+			return fmt.Errorf("count FantasyPros rows in %s: %w", table, err)
+		}
+		if count < minimumRealFantasyProsRows {
+			return fmt.Errorf(
+				"FantasyPros row count in %s is %d; expected at least %d",
+				table,
+				count,
+				minimumRealFantasyProsRows,
+			)
+		}
+	}
+	var invalidADP int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM player_adp
+		WHERE season != 2026
+			OR source != 'fantasypros'
+			OR adp <= 0
+			OR updated_at = ''
+	`).Scan(&invalidADP); err != nil {
+		return fmt.Errorf("validate ADP rows: %w", err)
+	}
+	if invalidADP != 0 {
+		return fmt.Errorf("found %d ADP rows outside the M6.3 contract", invalidADP)
+	}
+	var invalidRankings int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM player_rankings
+		WHERE season != 2026
+			OR source != 'fantasypros'
+			OR overall_rank <= 0
+			OR position_rank <= 0
+			OR rank_min <= 0
+			OR rank_max < rank_min
+			OR rank_std_dev < 0
+			OR updated_at = ''
+	`).Scan(&invalidRankings); err != nil {
+		return fmt.Errorf("validate ECR rows: %w", err)
+	}
+	if invalidRankings != 0 {
+		return fmt.Errorf("found %d ECR rows outside the M6.3 contract", invalidRankings)
+	}
+	var invalidTiers int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM player_tiers
+		WHERE season != 2026 OR source != 'fantasypros' OR tier <= 0 OR updated_at = ''
+	`).Scan(&invalidTiers); err != nil {
+		return fmt.Errorf("validate FantasyPros tiers: %w", err)
+	}
+	if invalidTiers != 0 {
+		return fmt.Errorf("found %d tier rows outside the M6.3 contract", invalidTiers)
+	}
 	for _, table := range []string{
-		"player_adp",
-		"player_tiers",
 		"odds",
 		"drafts",
 		"draft_picks",
@@ -234,7 +291,7 @@ func validateM62Database(dbPath string) error {
 			return err
 		}
 		if count != 0 {
-			return fmt.Errorf("%s contains %d rows; M6.2 rebuild expects none", table, count)
+			return fmt.Errorf("%s contains %d rows; M6.3 rebuild expects none", table, count)
 		}
 	}
 	rows, err := db.Query(`PRAGMA foreign_key_check`)

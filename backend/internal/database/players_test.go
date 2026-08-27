@@ -22,7 +22,9 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if len(players) != 4 {
 		t.Fatalf("player count = %d, want 4", len(players))
 	}
-	if players[0].Season == nil || players[0].FantasyProsADP == nil || players[0].Tier == nil {
+	if players[0].Season == nil || players[0].Draft.AggregateADP == nil ||
+		players[0].Draft.ECR == nil || players[0].Draft.Tier == nil ||
+		players[0].Draft.RankStdDev == nil {
 		t.Fatal("first player is missing seeded summary data")
 	}
 	for _, player := range players {

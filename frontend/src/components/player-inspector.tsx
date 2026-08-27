@@ -120,15 +120,36 @@ export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
             </h2>
           </div>
           <div className="rounded-md bg-muted px-3 py-2 text-center">
-            <p className="text-xs text-muted-foreground">Position tier</p>
-            <p className="font-semibold tabular-nums">{formatWhole(detail.data.tier?.tier)}</p>
+            <p className="text-xs text-muted-foreground">FantasyPros tier</p>
+            <p className="font-semibold tabular-nums">{formatWhole(detail.data.draft.tier)}</p>
           </div>
         </div>
 
         <dl className="mt-4 grid grid-cols-3 gap-2">
-          <Metric label="Aggregate ADP" value={formatDecimal(detail.data.adp.fantasypros)} />
-          <Metric label="Sleeper ADP" value={formatDecimal(detail.data.adp.sleeper)} />
-          <Metric label="Underdog ADP" value={formatDecimal(detail.data.adp.underdog)} />
+          <Metric label="Aggregate ADP" value={formatDecimal(detail.data.draft.aggregate_adp)} />
+          <Metric label="Overall ECR" value={formatWhole(detail.data.draft.ecr)} />
+          <Metric
+            label="Position rank"
+            value={
+              detail.data.draft.position_rank === null
+                ? "—"
+                : `${player.position}${detail.data.draft.position_rank}`
+            }
+          />
+        </dl>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="expert-range-heading">
+        <h3 className="text-sm font-semibold" id="expert-range-heading">
+          Expert Ranking Range
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Min and max are the highest and lowest submitted ranks; standard deviation summarizes disagreement.
+        </p>
+        <dl className="mt-3 grid grid-cols-3 gap-2">
+          <Metric label="Minimum" value={formatWhole(detail.data.draft.rank_min)} />
+          <Metric label="Maximum" value={formatWhole(detail.data.draft.rank_max)} />
+          <Metric label="Std dev" value={formatDecimal(detail.data.draft.rank_std_dev)} />
         </dl>
       </section>
 
