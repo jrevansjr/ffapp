@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/jrevansjr/ffapp/backend/internal/database"
+	"github.com/jrevansjr/ffapp/backend/internal/fantasypros"
 	"github.com/jrevansjr/ffapp/backend/internal/nflverse"
 	"github.com/jrevansjr/ffapp/backend/internal/sleeper"
 )
@@ -16,15 +18,17 @@ import (
 // Runner coordinates the data CLI while keeping provider retrieval separate
 // from transactional database loaders.
 type Runner struct {
-	DBPath             string
-	CacheDir           string
-	SleeperClient      *sleeper.Client
-	NFLVerseClient     *nflverse.Client
-	MinimumPlayerCount int
-	MinimumWeeklyStats int
-	MinimumSeasonStats int
-	Now                func() time.Time
-	Output             io.Writer
+	DBPath                 string
+	CacheDir               string
+	SleeperClient          *sleeper.Client
+	NFLVerseClient         *nflverse.Client
+	FantasyProsClient      *fantasypros.Client
+	MinimumPlayerCount     int
+	MinimumWeeklyStats     int
+	MinimumSeasonStats     int
+	MinimumFantasyProsRows int
+	Now                    func() time.Time
+	Output                 io.Writer
 }
 
 // NewRunner builds a data runner using DB_PATH's directory for ignored caches
@@ -34,15 +38,17 @@ func NewRunner(dbPath string, output io.Writer) *Runner {
 		dbPath = database.DefaultPath
 	}
 	return &Runner{
-		DBPath:             dbPath,
-		CacheDir:           filepath.Join(filepath.Dir(dbPath), "import-cache"),
-		SleeperClient:      sleeper.NewClient(),
-		NFLVerseClient:     nflverse.NewClient(),
-		MinimumPlayerCount: minimumRealPlayerCount,
-		MinimumWeeklyStats: minimumRealWeeklyStatRows,
-		MinimumSeasonStats: minimumRealSeasonStatRows,
-		Now:                time.Now,
-		Output:             output,
+		DBPath:                 dbPath,
+		CacheDir:               filepath.Join(filepath.Dir(dbPath), "import-cache"),
+		SleeperClient:          sleeper.NewClient(),
+		NFLVerseClient:         nflverse.NewClient(),
+		FantasyProsClient:      fantasypros.NewClient(os.Getenv("FANTASYPROS_API_KEY")),
+		MinimumPlayerCount:     minimumRealPlayerCount,
+		MinimumWeeklyStats:     minimumRealWeeklyStatRows,
+		MinimumSeasonStats:     minimumRealSeasonStatRows,
+		MinimumFantasyProsRows: minimumRealFantasyProsRows,
+		Now:                    time.Now,
+		Output:                 output,
 	}
 }
 
@@ -65,8 +71,13 @@ func (runner *Runner) Load(ctx context.Context, dataset string, refresh bool) er
 		return runner.loadPlayers(ctx, db)
 	case "stats":
 		return runner.loadStats(ctx, db, refresh)
+	case "fantasypros":
+		if refresh {
+			return fmt.Errorf("FantasyPros refreshes require a separately approved command for each dataset")
+		}
+		return runner.loadFantasyPros(ctx, db)
 	default:
-		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, and stats", dataset)
+		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, and fantasypros", dataset)
 	}
 }
 
@@ -88,7 +99,124 @@ func (runner *Runner) buildAt(ctx context.Context, dbPath string) error {
 	if err := runner.loadPlayers(ctx, db); err != nil {
 		return err
 	}
-	return runner.loadStats(ctx, db, false)
+	if err := runner.loadStats(ctx, db, false); err != nil {
+		return err
+	}
+	return runner.loadFantasyPros(ctx, db)
+}
+
+// RefreshFantasyPros performs exactly one authenticated provider request after
+// the CLI caller has obtained approval, then atomically caches that response.
+// It deliberately does not alter the database.
+func (runner *Runner) RefreshFantasyPros(ctx context.Context, name fantasypros.DatasetName) error {
+	var body []byte
+	var rowCount int
+	var err error
+	switch name {
+	case fantasypros.DatasetADP:
+		var dataset fantasypros.ADPDataset
+		dataset, body, err = runner.FantasyProsClient.FetchADP(ctx)
+		rowCount = len(dataset.Rankings)
+	case fantasypros.DatasetECR:
+		var dataset fantasypros.ECRDataset
+		dataset, body, err = runner.FantasyProsClient.FetchECR(ctx)
+		rowCount = len(dataset.Rankings)
+	default:
+		return fmt.Errorf("unknown FantasyPros dataset %q; supported datasets are adp and ecr", name)
+	}
+	if err != nil {
+		return err
+	}
+	if rowCount < runner.MinimumFantasyProsRows {
+		return fmt.Errorf(
+			"FantasyPros %s response contains %d rankings; refusing to cache below the safety threshold of %d",
+			name,
+			rowCount,
+			runner.MinimumFantasyProsRows,
+		)
+	}
+	fetchedAt := runner.Now().UTC()
+	if err := writeFantasyProsCache(runner.CacheDir, string(name), body, fetchedAt); err != nil {
+		return err
+	}
+	fmt.Fprintf(
+		runner.Output,
+		"fantasypros: refreshed dataset=%s fetched_at=%s rankings=%d\n",
+		name,
+		fetchedAt.Format(time.RFC3339),
+		rowCount,
+	)
+	return nil
+}
+
+func (runner *Runner) loadFantasyPros(ctx context.Context, db *sql.DB) error {
+	adpBody, adpFetchedAt, err := readFantasyProsCache(runner.CacheDir, string(fantasypros.DatasetADP))
+	if err != nil {
+		return fmt.Errorf("read cached FantasyPros ADP: %w; run the separately approved ADP refresh first", err)
+	}
+	adp, err := fantasypros.ParseADP(adpBody, adpFetchedAt)
+	if err != nil {
+		return fmt.Errorf("parse cached FantasyPros ADP: %w", err)
+	}
+	ecrBody, ecrFetchedAt, err := readFantasyProsCache(runner.CacheDir, string(fantasypros.DatasetECR))
+	if err != nil {
+		return fmt.Errorf("read cached FantasyPros ECR: %w; run the separately approved ECR refresh first", err)
+	}
+	ecr, err := fantasypros.ParseECR(ecrBody, ecrFetchedAt)
+	if err != nil {
+		return fmt.Errorf("parse cached FantasyPros ECR: %w", err)
+	}
+	playerIDs, err := readCachedPlayerIDs(runner.CacheDir)
+	if err != nil {
+		return fmt.Errorf("read cached player-ID crosswalk for FantasyPros: %w; load stats first", err)
+	}
+	summary, err := loadFantasyProsWithThreshold(
+		ctx, db, adp, ecr, playerIDs, runner.MinimumFantasyProsRows,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(
+		runner.Output,
+		"fantasypros: id_backfills=%d conflicts=%d ambiguous=%d\n",
+		summary.FantasyProsBackfills,
+		summary.IdentityConflicts,
+		summary.AmbiguousMappings,
+	)
+	for _, dataset := range []FantasyProsDatasetSummary{summary.ADP, summary.ECR} {
+		fmt.Fprintf(
+			runner.Output,
+			"fantasypros: dataset=%s source_rows=%d matched=%d unmatched=%d inserted=%d updated_at=%s\n",
+			dataset.Dataset,
+			dataset.SourceRows,
+			dataset.MatchedRows,
+			dataset.UnmatchedRows,
+			dataset.InsertedRows,
+			dataset.UpdatedAt,
+		)
+		for _, player := range dataset.Unmatched {
+			fmt.Fprintf(
+				runner.Output,
+				"fantasypros: unmatched dataset=%s fantasypros_id=%s player=%q position=%s value=%.2f\n",
+				dataset.Dataset,
+				player.FantasyProsID,
+				player.Name,
+				player.Position,
+				player.Value,
+			)
+		}
+	}
+	for _, issue := range summary.IdentityIssues {
+		fmt.Fprintf(
+			runner.Output,
+			"fantasypros: identity_issue sleeper_id=%s local_fantasypros_id=%s crosswalk_fantasypros_id=%s reason=%q\n",
+			issue.SleeperID,
+			issue.LocalFantasyProsID,
+			issue.CrosswalkFantasyProsID,
+			issue.Reason,
+		)
+	}
+	return nil
 }
 
 func (runner *Runner) loadStats(ctx context.Context, db *sql.DB, refresh bool) error {

@@ -51,7 +51,7 @@ const columns = columnHelper.columns([
     sortUndefined: "last",
     cell: ({ getValue }) => getValue() ?? "—",
   }),
-  columnHelper.accessor((player) => player.tier ?? undefined, {
+  columnHelper.accessor((player) => player.draft.tier ?? undefined, {
     id: "tier",
     header: "Tier",
     sortFn: "basic",
@@ -60,7 +60,26 @@ const columns = columnHelper.columns([
     meta: { numeric: true },
     cell: ({ getValue }) => getValue() ?? "—",
   }),
-  columnHelper.accessor((player) => player.adp.fantasypros ?? undefined, {
+  columnHelper.accessor((player) => player.draft.ecr ?? undefined, {
+    id: "ecr",
+    header: "ECR",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => getValue() ?? "—",
+  }),
+  columnHelper.accessor((player) => player.draft.position_rank ?? undefined, {
+    id: "positionRank",
+    header: "Pos Rank",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue, row }) =>
+      getValue() === undefined ? "—" : `${row.original.position}${getValue()}`,
+  }),
+  columnHelper.accessor((player) => player.draft.aggregate_adp ?? undefined, {
     id: "fantasyProsADP",
     header: "Aggregate ADP",
     sortFn: "basic",
@@ -109,7 +128,7 @@ export default function DraftPlayerTable({
 
   return (
     <div className="max-h-[calc(100vh-21rem)] min-h-80 overflow-auto rounded-lg border border-border bg-card">
-      <table className="min-w-[620px] w-full border-collapse text-left text-xs">
+      <table className="min-w-[720px] w-full border-collapse text-left text-xs">
         <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
           {playerTable.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>

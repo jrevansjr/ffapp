@@ -163,7 +163,7 @@ func TestLoadStatsRollsBackReplacementOnWriteFailure(t *testing.T) {
 func TestStatsRefreshPreservesPriorCacheWhenEitherProviderFails(t *testing.T) {
 	root := t.TempDir()
 	statsBody := weeklyCSVFixture()
-	crosswalkBody := []byte("sleeper_id,gsis_id,name\nqb-1,gsis-qb-1,Test QB\n")
+	crosswalkBody := []byte("sleeper_id,gsis_id,fantasypros_id,name\nqb-1,gsis-qb-1,1001,Test QB\n")
 	firstFetch := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
 	runner := NewRunner(root+"/draft.db", io.Discard)
 	runner.CacheDir = root + "/cache"

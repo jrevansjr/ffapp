@@ -4,20 +4,35 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/jrevansjr/ffapp/backend/internal/database"
+	"github.com/jrevansjr/ffapp/backend/internal/fantasypros"
 	"github.com/jrevansjr/ffapp/backend/internal/importer"
 )
 
 func main() {
 	log.SetFlags(0)
+	if err := loadEnvironment(); err != nil {
+		log.Fatal(err)
+	}
 	if err := run(context.Background(), os.Args[1:]); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// loadEnvironment makes the ignored local .env convenient without overriding
+// variables explicitly exported by the caller's shell.
+func loadEnvironment() error {
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("load .env: %w", err)
+	}
+	return nil
 }
 
 func run(ctx context.Context, args []string) error {
@@ -28,17 +43,22 @@ func run(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "load":
 		if len(args) < 2 || len(args) > 3 {
-			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats [--refresh]")
+			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats|fantasypros [--refresh]")
 		}
 		dataset := args[1]
 		refresh := len(args) == 3 && args[2] == "--refresh"
 		if len(args) == 3 && !refresh {
-			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats [--refresh]")
+			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats|fantasypros [--refresh]")
 		}
 		if refresh && dataset != "stats" {
 			return fmt.Errorf("--refresh is supported only by load stats")
 		}
 		return runner.Load(ctx, dataset, refresh)
+	case "refresh":
+		if len(args) != 3 || args[1] != "fantasypros" {
+			return fmt.Errorf("usage: go run ./cmd/data refresh fantasypros adp|ecr")
+		}
+		return runner.RefreshFantasyPros(ctx, fantasypros.DatasetName(args[2]))
 	case "build":
 		if len(args) != 1 {
 			return fmt.Errorf("usage: go run ./cmd/data build")
@@ -71,6 +91,6 @@ func run(ctx context.Context, args []string) error {
 
 func usageError() error {
 	return fmt.Errorf(
-		"usage: go run ./cmd/data load teams|players|stats [--refresh] | build | rebuild --confirm",
+		"usage: go run ./cmd/data load teams|players|stats|fantasypros [--refresh] | refresh fantasypros adp|ecr | build | rebuild --confirm",
 	)
 }

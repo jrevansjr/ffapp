@@ -121,23 +121,24 @@ func TestOpenUpgradesExistingPlayerRows(t *testing.T) {
 	defer upgraded.Close()
 
 	var (
-		name       string
-		yearsExp   sql.NullInt64
-		sportradar sql.NullString
-		gsis       sql.NullString
+		name        string
+		yearsExp    sql.NullInt64
+		sportradar  sql.NullString
+		gsis        sql.NullString
+		fantasyPros sql.NullString
 	)
 	if err := upgraded.QueryRow(`
-		SELECT first_name, years_exp, sportradar_id, gsis_id
+		SELECT first_name, years_exp, sportradar_id, gsis_id, fantasypros_id
 		FROM players
 		WHERE sleeper_player_id = ?
-	`, "existing-player").Scan(&name, &yearsExp, &sportradar, &gsis); err != nil {
+	`, "existing-player").Scan(&name, &yearsExp, &sportradar, &gsis, &fantasyPros); err != nil {
 		t.Fatalf("load upgraded player: %v", err)
 	}
 	if name != "Existing" {
 		t.Fatalf("preserved first_name = %q, want Existing", name)
 	}
-	if yearsExp.Valid || sportradar.Valid || gsis.Valid {
-		t.Fatalf("new optional fields = %v, %v, %v; want NULL", yearsExp, sportradar, gsis)
+	if yearsExp.Valid || sportradar.Valid || gsis.Valid || fantasyPros.Valid {
+		t.Fatalf("new optional fields = %v, %v, %v, %v; want NULL", yearsExp, sportradar, gsis, fantasyPros)
 	}
 }
 

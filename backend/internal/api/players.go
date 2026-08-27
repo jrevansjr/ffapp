@@ -21,11 +21,15 @@ type playerTeamResponse struct {
 }
 
 // The player response types intentionally mirror the UI's data needs instead
-// of exposing rows from the normalized stats, ADP, tier, and odds tables.
-type playerADPResponse struct {
-	FantasyPros *float64 `json:"fantasypros"`
-	Sleeper     *float64 `json:"sleeper"`
-	Underdog    *float64 `json:"underdog"`
+// of exposing rows from normalized draft, stats, and odds tables.
+type playerDraftResponse struct {
+	AggregateADP *float64 `json:"aggregate_adp"`
+	ECR          *int     `json:"ecr"`
+	PositionRank *int     `json:"position_rank"`
+	Tier         *int     `json:"tier"`
+	RankMin      *int     `json:"rank_min"`
+	RankMax      *int     `json:"rank_max"`
+	RankStdDev   *float64 `json:"rank_std_dev"`
 }
 
 type seasonStatsResponse struct {
@@ -63,15 +67,15 @@ type playerListResponse struct {
 	DepthChartPosition *string                `json:"depth_chart_position"`
 	DepthChartOrder    *int                   `json:"depth_chart_order"`
 	InjuryStatus       *string                `json:"injury_status"`
-	ADP                playerADPResponse      `json:"adp"`
+	Draft              playerDraftResponse    `json:"draft"`
 	Season             *seasonStatsResponse   `json:"season"`
 	Odds               playerListOddsResponse `json:"odds"`
-	Tier               *int                   `json:"tier"`
 	IsTaken            bool                   `json:"is_taken"`
 }
 
 type providerIDsResponse struct {
 	GSIS        *string `json:"gsis"`
+	FantasyPros *string `json:"fantasypros"`
 	ESPN        *string `json:"espn"`
 	Sportradar  *string `json:"sportradar"`
 	Rotowire    *string `json:"rotowire"`
@@ -105,13 +109,6 @@ type playerProfileResponse struct {
 	PracticeParticipation *string             `json:"practice_participation"`
 	ProviderIDs           providerIDsResponse `json:"provider_ids"`
 	IsTaken               bool                `json:"is_taken"`
-}
-
-type playerTierResponse struct {
-	Season    int    `json:"season"`
-	Source    string `json:"source"`
-	Tier      int    `json:"tier"`
-	UpdatedAt string `json:"updated_at"`
 }
 
 type oddsLineResponse struct {
@@ -153,8 +150,7 @@ type weeklySummaryResponse struct {
 type playerDetailResponse struct {
 	Player        playerProfileResponse `json:"player"`
 	Season        *seasonStatsResponse  `json:"season"`
-	ADP           playerADPResponse     `json:"adp"`
-	Tier          *playerTierResponse   `json:"tier"`
+	Draft         playerDraftResponse   `json:"draft"`
 	Odds          playerOddsResponse    `json:"odds"`
 	Weekly        []weeklyStatsResponse `json:"weekly"`
 	WeeklySummary weeklySummaryResponse `json:"weekly_summary"`
@@ -239,17 +235,12 @@ func newPlayerListResponse(player database.PlayerListItem, now time.Time) player
 		DepthChartPosition: player.DepthChartPosition,
 		DepthChartOrder:    player.DepthChartOrder,
 		InjuryStatus:       player.InjuryStatus,
-		ADP: playerADPResponse{
-			FantasyPros: player.FantasyProsADP,
-			Sleeper:     player.SleeperADP,
-			Underdog:    player.UnderdogADP,
-		},
-		Season: newSeasonStatsResponse(player.Season),
+		Draft:              newPlayerDraftResponse(player.Draft),
+		Season:             newSeasonStatsResponse(player.Season),
 		Odds: playerListOddsResponse{
 			TouchdownLine: player.TouchdownLine,
 			TeamWinLine:   player.TeamWinLine,
 		},
-		Tier:    player.Tier,
 		IsTaken: player.IsTaken,
 	}
 }
@@ -301,6 +292,7 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 			PracticeParticipation: detail.Player.PracticeParticipation,
 			ProviderIDs: providerIDsResponse{
 				GSIS:        detail.Player.ProviderIDs.GSIS,
+				FantasyPros: detail.Player.ProviderIDs.FantasyPros,
 				ESPN:        detail.Player.ProviderIDs.ESPN,
 				Sportradar:  detail.Player.ProviderIDs.Sportradar,
 				Rotowire:    detail.Player.ProviderIDs.Rotowire,
@@ -311,13 +303,8 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 			},
 			IsTaken: detail.IsTaken,
 		},
-		Season: newSeasonStatsResponse(detail.Season),
-		ADP: playerADPResponse{
-			FantasyPros: detail.ADP.FantasyPros,
-			Sleeper:     detail.ADP.Sleeper,
-			Underdog:    detail.ADP.Underdog,
-		},
-		Tier:          newPlayerTierResponse(detail.Tier),
+		Season:        newSeasonStatsResponse(detail.Season),
+		Draft:         newPlayerDraftResponse(detail.Draft),
 		Odds:          newPlayerOddsResponse(detail.Odds),
 		Weekly:        weekly,
 		WeeklySummary: summarize(points),
@@ -364,12 +351,15 @@ func newSeasonStatsResponse(stats *database.PlayerSeasonStats) *seasonStatsRespo
 	}
 }
 
-func newPlayerTierResponse(tier *database.PlayerTier) *playerTierResponse {
-	if tier == nil {
-		return nil
-	}
-	return &playerTierResponse{
-		Season: tier.Season, Source: tier.Source, Tier: tier.Tier, UpdatedAt: tier.UpdatedAt,
+func newPlayerDraftResponse(data database.PlayerDraftData) playerDraftResponse {
+	return playerDraftResponse{
+		AggregateADP: data.AggregateADP,
+		ECR:          data.ECR,
+		PositionRank: data.PositionRank,
+		Tier:         data.Tier,
+		RankMin:      data.RankMin,
+		RankMax:      data.RankMax,
+		RankStdDev:   data.RankStdDev,
 	}
 }
 

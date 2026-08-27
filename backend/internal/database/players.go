@@ -47,19 +47,18 @@ type PlayerListItem struct {
 	DepthChartPosition *string
 	DepthChartOrder    *int
 	InjuryStatus       *string
-	FantasyProsADP     *float64
-	SleeperADP         *float64
-	UnderdogADP        *float64
+	Draft              PlayerDraftData
 	Season             *PlayerSeasonStats
 	TouchdownLine      *float64
 	TeamWinLine        *float64
-	Tier               *int
 	IsTaken            bool
 }
 
-// ProviderIDs contains external identity hints retained from Sleeper.
+// ProviderIDs contains external identities retained from approved providers
+// and exact crosswalks.
 type ProviderIDs struct {
 	GSIS        *string
+	FantasyPros *string
 	ESPN        *string
 	Sportradar  *string
 	Rotowire    *string
@@ -124,19 +123,17 @@ type PlayerWeekStats struct {
 	RushingTouchdowns    int
 }
 
-// PlayerADP holds the three named ADP sources used by the application.
-type PlayerADP struct {
-	FantasyPros *float64
-	Sleeper     *float64
-	Underdog    *float64
-}
-
-// PlayerTier identifies the source and season for an externally supplied tier.
-type PlayerTier struct {
-	Season    int
-	Source    string
-	Tier      int
-	UpdatedAt string
+// PlayerDraftData combines the FantasyPros fields used for quick draft-day
+// comparison. Every value remains nullable when the provider has no exact ID
+// match for a local player.
+type PlayerDraftData struct {
+	AggregateADP *float64
+	ECR          *int
+	PositionRank *int
+	Tier         *int
+	RankMin      *int
+	RankMax      *int
+	RankStdDev   *float64
 }
 
 // OddsLine is one player- or NFL-team-specific betting market snapshot.
@@ -161,8 +158,7 @@ type PlayerDetail struct {
 	Player  PlayerProfile
 	IsTaken bool
 	Season  *PlayerSeasonStats
-	ADP     PlayerADP
-	Tier    *PlayerTier
+	Draft   PlayerDraftData
 	Odds    PlayerOdds
 	Weekly  []PlayerWeekStats
 }
@@ -186,9 +182,13 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			players.depth_chart_position,
 			players.depth_chart_order,
 			players.injury_status,
-			(SELECT adp FROM player_adp WHERE player_id = players.id AND season = 2026 AND source = 'fantasypros'),
-			(SELECT adp FROM player_adp WHERE player_id = players.id AND season = 2026 AND source = 'sleeper'),
-			(SELECT adp FROM player_adp WHERE player_id = players.id AND season = 2026 AND source = 'underdog'),
+			aggregate_adp.adp,
+			draft_rankings.overall_rank,
+			draft_rankings.position_rank,
+			fantasypros_tiers.tier,
+			draft_rankings.rank_min,
+			draft_rankings.rank_max,
+			draft_rankings.rank_std_dev,
 			season_stats.season,
 			season_stats.games_played,
 			season_stats.fantasy_points_half_ppr,
@@ -202,12 +202,23 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			season_stats.rushing_touchdowns,
 			(SELECT line FROM odds WHERE player_id = players.id AND season = 2026 AND market = 'total_touchdowns' ORDER BY captured_at DESC, source LIMIT 1),
 			(SELECT line FROM odds WHERE nfl_team_id = players.nfl_team_id AND season = 2026 AND market = 'regular_season_wins' ORDER BY captured_at DESC, source LIMIT 1),
-			(SELECT tier FROM player_tiers WHERE player_id = players.id AND season = 2026 ORDER BY updated_at DESC, source LIMIT 1),
 			` + takenPlayerExpression + ` AS is_taken
 		FROM players
 		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
 		LEFT JOIN player_season_stats AS season_stats
 			ON season_stats.player_id = players.id AND season_stats.season = 2025
+		LEFT JOIN player_adp AS aggregate_adp
+			ON aggregate_adp.player_id = players.id
+			AND aggregate_adp.season = 2026
+			AND aggregate_adp.source = 'fantasypros'
+		LEFT JOIN player_rankings AS draft_rankings
+			ON draft_rankings.player_id = players.id
+			AND draft_rankings.season = 2026
+			AND draft_rankings.source = 'fantasypros'
+		LEFT JOIN player_tiers AS fantasypros_tiers
+			ON fantasypros_tiers.player_id = players.id
+			AND fantasypros_tiers.season = 2026
+			AND fantasypros_tiers.source = 'fantasypros'
 		WHERE players.active = 1
 	`
 	args := make([]any, 0, 2)
@@ -251,8 +262,9 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		depthChartPosition, injuryStatus                               sql.NullString
 		teamID, number, yearsExp, depthChartOrder, season, gamesPlayed sql.NullInt64
 		passingYards, targets, receptions, rushingAttempts             sql.NullInt64
-		receivingYards, rushingYards, receivingTDs, rushingTDs, tier   sql.NullInt64
-		fantasyProsADP, sleeperADP, underdogADP, fantasyPoints         sql.NullFloat64
+		receivingYards, rushingYards, receivingTDs, rushingTDs         sql.NullInt64
+		ecr, positionRank, tier, rankMin, rankMax                      sql.NullInt64
+		aggregateADP, rankStdDev, fantasyPoints                        sql.NullFloat64
 		touchdownLine, teamWinLine                                     sql.NullFloat64
 		isTaken                                                        int
 	)
@@ -271,9 +283,13 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		&depthChartPosition,
 		&depthChartOrder,
 		&injuryStatus,
-		&fantasyProsADP,
-		&sleeperADP,
-		&underdogADP,
+		&aggregateADP,
+		&ecr,
+		&positionRank,
+		&tier,
+		&rankMin,
+		&rankMax,
+		&rankStdDev,
 		&season,
 		&gamesPlayed,
 		&fantasyPoints,
@@ -287,7 +303,6 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		&rushingTDs,
 		&touchdownLine,
 		&teamWinLine,
-		&tier,
 		&isTaken,
 	); err != nil {
 		return PlayerListItem{}, fmt.Errorf("scan player list item: %w", err)
@@ -301,12 +316,17 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 	player.DepthChartPosition = nullStringPointer(depthChartPosition)
 	player.DepthChartOrder = nullIntPointer(depthChartOrder)
 	player.InjuryStatus = nullStringPointer(injuryStatus)
-	player.FantasyProsADP = nullFloatPointer(fantasyProsADP)
-	player.SleeperADP = nullFloatPointer(sleeperADP)
-	player.UnderdogADP = nullFloatPointer(underdogADP)
+	player.Draft = PlayerDraftData{
+		AggregateADP: nullFloatPointer(aggregateADP),
+		ECR:          nullIntPointer(ecr),
+		PositionRank: nullIntPointer(positionRank),
+		Tier:         nullIntPointer(tier),
+		RankMin:      nullIntPointer(rankMin),
+		RankMax:      nullIntPointer(rankMax),
+		RankStdDev:   nullFloatPointer(rankStdDev),
+	}
 	player.TouchdownLine = nullFloatPointer(touchdownLine)
 	player.TeamWinLine = nullFloatPointer(teamWinLine)
-	player.Tier = nullIntPointer(tier)
 	player.IsTaken = isTaken == 1
 	if season.Valid {
 		player.Season = &PlayerSeasonStats{
@@ -335,10 +355,7 @@ func GetPlayer(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, e
 	if detail.Season, err = loadPlayerSeason(ctx, db, playerID); err != nil {
 		return PlayerDetail{}, err
 	}
-	if detail.ADP, err = loadPlayerADP(ctx, db, playerID); err != nil {
-		return PlayerDetail{}, err
-	}
-	if detail.Tier, err = loadPlayerTier(ctx, db, playerID); err != nil {
+	if detail.Draft, err = loadPlayerDraftData(ctx, db, playerID); err != nil {
 		return PlayerDetail{}, err
 	}
 	if detail.Odds, err = loadPlayerOdds(ctx, db, playerID, detail.Player.NFLTeam); err != nil {
@@ -357,7 +374,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 		status, college, height, weight, birthCountry          sql.NullString
 		depthPosition, injuryStatus, injuryStart, practice     sql.NullString
 		espnID, sportradarID, rotowireID, rotoworldID, yahooID sql.NullString
-		fantasyDataID, statsID, gsisID                         sql.NullString
+		fantasyDataID, statsID, gsisID, fantasyProsID          sql.NullString
 		teamID, number, yearsExp, depthOrder                   sql.NullInt64
 		active, isTaken                                        int
 	)
@@ -393,6 +410,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 			players.fantasy_data_id,
 			players.stats_id,
 			players.gsis_id,
+			players.fantasypros_id,
 			`+takenPlayerExpression+` AS is_taken
 		FROM players
 		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
@@ -428,6 +446,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 		&fantasyDataID,
 		&statsID,
 		&gsisID,
+		&fantasyProsID,
 		&isTaken,
 	)
 	if err != nil {
@@ -455,6 +474,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 	detail.Player.PracticeParticipation = nullStringPointer(practice)
 	detail.Player.ProviderIDs = ProviderIDs{
 		GSIS:        nullStringPointer(gsisID),
+		FantasyPros: nullStringPointer(fantasyProsID),
 		ESPN:        nullStringPointer(espnID),
 		Sportradar:  nullStringPointer(sportradarID),
 		Rotowire:    nullStringPointer(rotowireID),
@@ -506,55 +526,49 @@ func loadPlayerSeason(ctx context.Context, db *sql.DB, playerID int64) (*PlayerS
 	return &stats, nil
 }
 
-func loadPlayerADP(ctx context.Context, db *sql.DB, playerID int64) (PlayerADP, error) {
-	rows, err := db.QueryContext(ctx, `
-		SELECT source, adp
-		FROM player_adp
-		WHERE player_id = ? AND season = 2026
-	`, playerID)
-	if err != nil {
-		return PlayerADP{}, fmt.Errorf("get player ADP: %w", err)
-	}
-	defer rows.Close()
-
-	var adp PlayerADP
-	for rows.Next() {
-		var source string
-		var value float64
-		if err := rows.Scan(&source, &value); err != nil {
-			return PlayerADP{}, fmt.Errorf("scan player ADP: %w", err)
-		}
-		switch source {
-		case "fantasypros":
-			adp.FantasyPros = floatPointer(value)
-		case "sleeper":
-			adp.Sleeper = floatPointer(value)
-		case "underdog":
-			adp.Underdog = floatPointer(value)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return PlayerADP{}, fmt.Errorf("read player ADP: %w", err)
-	}
-	return adp, nil
-}
-
-func loadPlayerTier(ctx context.Context, db *sql.DB, playerID int64) (*PlayerTier, error) {
-	var tier PlayerTier
+func loadPlayerDraftData(ctx context.Context, db *sql.DB, playerID int64) (PlayerDraftData, error) {
+	var (
+		data                                      PlayerDraftData
+		aggregateADP, rankStdDev                  sql.NullFloat64
+		ecr, positionRank, tier, rankMin, rankMax sql.NullInt64
+	)
 	err := db.QueryRowContext(ctx, `
-		SELECT season, source, tier, updated_at
-		FROM player_tiers
-		WHERE player_id = ? AND season = 2026
-		ORDER BY updated_at DESC, source
-		LIMIT 1
-	`, playerID).Scan(&tier.Season, &tier.Source, &tier.Tier, &tier.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
+		SELECT
+			aggregate_adp.adp,
+			draft_rankings.overall_rank,
+			draft_rankings.position_rank,
+			fantasypros_tiers.tier,
+			draft_rankings.rank_min,
+			draft_rankings.rank_max,
+			draft_rankings.rank_std_dev
+		FROM players
+		LEFT JOIN player_adp AS aggregate_adp
+			ON aggregate_adp.player_id = players.id
+			AND aggregate_adp.season = 2026
+			AND aggregate_adp.source = 'fantasypros'
+		LEFT JOIN player_rankings AS draft_rankings
+			ON draft_rankings.player_id = players.id
+			AND draft_rankings.season = 2026
+			AND draft_rankings.source = 'fantasypros'
+		LEFT JOIN player_tiers AS fantasypros_tiers
+			ON fantasypros_tiers.player_id = players.id
+			AND fantasypros_tiers.season = 2026
+			AND fantasypros_tiers.source = 'fantasypros'
+		WHERE players.id = ?
+	`, playerID).Scan(
+		&aggregateADP, &ecr, &positionRank, &tier, &rankMin, &rankMax, &rankStdDev,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("get player tier: %w", err)
+		return PlayerDraftData{}, fmt.Errorf("get player draft data: %w", err)
 	}
-	return &tier, nil
+	data.AggregateADP = nullFloatPointer(aggregateADP)
+	data.ECR = nullIntPointer(ecr)
+	data.PositionRank = nullIntPointer(positionRank)
+	data.Tier = nullIntPointer(tier)
+	data.RankMin = nullIntPointer(rankMin)
+	data.RankMax = nullIntPointer(rankMax)
+	data.RankStdDev = nullFloatPointer(rankStdDev)
+	return data, nil
 }
 
 func loadPlayerOdds(

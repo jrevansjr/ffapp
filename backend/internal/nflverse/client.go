@@ -177,15 +177,15 @@ func ParseWeeklyStats(body []byte) (WeeklyDataset, error) {
 	return dataset, nil
 }
 
-// ParsePlayerIDs reads only Sleeper and GSIS IDs from the DynastyProcess
-// crosswalk. Rows lacking either ID are intentionally ignored.
+// ParsePlayerIDs reads the exact external IDs used by implemented importers
+// from the DynastyProcess crosswalk. Names remain diagnostic only.
 func ParsePlayerIDs(body []byte) (PlayerIDDataset, error) {
 	reader := csv.NewReader(bytes.NewReader(body))
 	header, err := reader.Read()
 	if err != nil {
 		return PlayerIDDataset{}, fmt.Errorf("read player-ID header: %w", err)
 	}
-	columns, err := requireColumns(header, []string{"sleeper_id", "gsis_id", "name"})
+	columns, err := requireColumns(header, []string{"sleeper_id", "gsis_id", "fantasypros_id", "name"})
 	if err != nil {
 		return PlayerIDDataset{}, fmt.Errorf("validate player-ID header: %w", err)
 	}
@@ -202,16 +202,17 @@ func ParsePlayerIDs(body []byte) (PlayerIDDataset, error) {
 		}
 		dataset.SourceRows++
 		row := PlayerID{
-			SleeperID: cleanValue(record[columns["sleeper_id"]]),
-			GSISID:    cleanValue(record[columns["gsis_id"]]),
-			Name:      cleanValue(record[columns["name"]]),
+			SleeperID:     cleanValue(record[columns["sleeper_id"]]),
+			GSISID:        cleanValue(record[columns["gsis_id"]]),
+			FantasyProsID: cleanValue(record[columns["fantasypros_id"]]),
+			Name:          cleanValue(record[columns["name"]]),
 		}
-		if row.SleeperID != "" && row.GSISID != "" {
+		if row.SleeperID != "" && (row.GSISID != "" || row.FantasyProsID != "") {
 			dataset.Rows = append(dataset.Rows, row)
 		}
 	}
 	if len(dataset.Rows) == 0 {
-		return PlayerIDDataset{}, fmt.Errorf("player-ID CSV contains no Sleeper-to-GSIS mappings")
+		return PlayerIDDataset{}, fmt.Errorf("player-ID CSV contains no usable Sleeper mappings")
 	}
 	return dataset, nil
 }

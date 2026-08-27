@@ -25,10 +25,15 @@ export interface NFLTeam {
   name: string
 }
 
-export interface PlayerADP {
-  fantasypros: number | null
-  sleeper: number | null
-  underdog: number | null
+/** PlayerDraftData combines market cost with FantasyPros expert consensus. */
+export interface PlayerDraftData {
+  aggregate_adp: number | null
+  ecr: number | null
+  position_rank: number | null
+  tier: number | null
+  rank_min: number | null
+  rank_max: number | null
+  rank_std_dev: number | null
 }
 
 export interface PlayerSeasonStats {
@@ -67,10 +72,9 @@ export interface PlayerListItem {
   depth_chart_position: string | null
   depth_chart_order: number | null
   injury_status: string | null
-  adp: PlayerADP
+  draft: PlayerDraftData
   season: PlayerSeasonStats | null
   odds: PlayerOdds
-  tier: number | null
   is_taken: boolean
 }
 
@@ -82,6 +86,7 @@ export interface PlayerFilters {
 
 export interface PlayerProviderIDs {
   gsis: string | null
+  fantasypros: string | null
   espn: string | null
   sportradar: string | null
   rotowire: string | null
@@ -116,13 +121,6 @@ export interface PlayerProfile {
   practice_participation: string | null
   provider_ids: PlayerProviderIDs
   is_taken: boolean
-}
-
-export interface PlayerTier {
-  season: number
-  source: string
-  tier: number
-  updated_at: string
 }
 
 export interface OddsLine {
@@ -166,8 +164,7 @@ export interface WeeklySummary {
 export interface PlayerDetail {
   player: PlayerProfile
   season: PlayerSeasonStats | null
-  adp: PlayerADP
-  tier: PlayerTier | null
+  draft: PlayerDraftData
   odds: PlayerDetailOdds
   weekly: PlayerWeekStats[]
   weekly_summary: WeeklySummary

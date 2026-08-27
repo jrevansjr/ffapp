@@ -74,7 +74,7 @@ const columns = columnHelper.columns([
     meta: { numeric: true },
     cell: ({ getValue }) => formatWholeNumber(getValue()),
   }),
-  columnHelper.accessor((player) => player.adp.fantasypros ?? undefined, {
+  columnHelper.accessor((player) => player.draft.aggregate_adp ?? undefined, {
     id: "fantasyProsADP",
     header: "FantasyPros Aggregate ADP",
     sortFn: "basic",
@@ -83,32 +83,60 @@ const columns = columnHelper.columns([
     meta: { numeric: true },
     cell: ({ getValue }) => formatNumber(getValue(), 1),
   }),
-  columnHelper.accessor((player) => player.adp.sleeper ?? undefined, {
-    id: "sleeperADP",
-    header: "Sleeper ADP",
-    sortFn: "basic",
-    sortDescFirst: false,
-    sortUndefined: "last",
-    meta: { numeric: true },
-    cell: ({ getValue }) => formatNumber(getValue(), 1),
-  }),
-  columnHelper.accessor((player) => player.adp.underdog ?? undefined, {
-    id: "underdogADP",
-    header: "Underdog ADP",
-    sortFn: "basic",
-    sortDescFirst: false,
-    sortUndefined: "last",
-    meta: { numeric: true },
-    cell: ({ getValue }) => formatNumber(getValue(), 1),
-  }),
-  columnHelper.accessor((player) => player.tier ?? undefined, {
-    id: "tier",
-    header: "2026 Projected Position Tier",
+  columnHelper.accessor((player) => player.draft.ecr ?? undefined, {
+    id: "ecr",
+    header: "FantasyPros ECR",
     sortFn: "basic",
     sortDescFirst: false,
     sortUndefined: "last",
     meta: { numeric: true },
     cell: ({ getValue }) => formatWholeNumber(getValue()),
+  }),
+  columnHelper.accessor((player) => player.draft.position_rank ?? undefined, {
+    id: "positionRank",
+    header: "Position Rank",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue, row }) =>
+      getValue() === undefined ? "—" : `${row.original.position}${getValue()}`,
+  }),
+  columnHelper.accessor((player) => player.draft.tier ?? undefined, {
+    id: "tier",
+    header: "FantasyPros Tier",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatWholeNumber(getValue()),
+  }),
+  columnHelper.accessor((player) => player.draft.rank_min ?? undefined, {
+    id: "rankMin",
+    header: "ECR Min",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatWholeNumber(getValue()),
+  }),
+  columnHelper.accessor((player) => player.draft.rank_max ?? undefined, {
+    id: "rankMax",
+    header: "ECR Max",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatWholeNumber(getValue()),
+  }),
+  columnHelper.accessor((player) => player.draft.rank_std_dev ?? undefined, {
+    id: "rankStdDev",
+    header: "ECR Std Dev",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatNumber(getValue(), 1),
   }),
   columnHelper.accessor((player) => player.season?.fantasy_points_half_ppr, {
     id: "fantasyPoints",
@@ -197,7 +225,7 @@ export default function PlayerOverviewTable({ players }: { players: PlayerListIt
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="min-w-[1640px] w-full border-collapse text-left text-xs">
+      <table className="min-w-[1820px] w-full border-collapse text-left text-xs">
         <thead className="bg-muted text-muted-foreground">
           {playerTable.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>

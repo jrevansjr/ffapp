@@ -29,12 +29,13 @@ func TestParseWeeklyStatsFiltersAndUsesNamedColumns(t *testing.T) {
 }
 
 func TestParsePlayerIDsIgnoresMissingIDs(t *testing.T) {
-	body := "name,gsis_id,sleeper_id\nMapped,00-001,1001\nMissing GSIS,NA,1002\nMissing Sleeper,00-003,NA\n"
+	body := "name,gsis_id,sleeper_id,fantasypros_id\nMapped,00-001,1001,2001\nFantasyPros Only,NA,1002,2002\nMissing IDs,NA,1003,NA\nMissing Sleeper,00-003,NA,2003\n"
 	dataset, err := ParsePlayerIDs([]byte(body))
 	if err != nil {
 		t.Fatalf("ParsePlayerIDs() error = %v", err)
 	}
-	if dataset.SourceRows != 3 || len(dataset.Rows) != 1 || dataset.Rows[0].SleeperID != "1001" {
+	if dataset.SourceRows != 4 || len(dataset.Rows) != 2 || dataset.Rows[0].SleeperID != "1001" ||
+		dataset.Rows[0].FantasyProsID != "2001" || dataset.Rows[1].FantasyProsID != "2002" {
 		t.Fatalf("dataset = %#v", dataset)
 	}
 }

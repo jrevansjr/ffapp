@@ -24,6 +24,9 @@ Prefer obvious code over clever code. Prefer a little duplication over an abstra
 - Work incrementally; keep the app runnable at logical checkpoints. No large unrelated refactors mid-feature.
 - Add a dependency only when it clearly simplifies the implementation.
 - Update `README.md` when setup steps, commands, env vars, or user-facing behavior change.
+- Before every request to a keyed, rate-limited, or daily-limited provider, ask
+  the user for a fresh explicit yes/no approval. Prior approval never carries
+  forward to another request. Cache reads and local test servers do not count.
 - If a user instruction conflicts with this file, follow the instruction, then update this file if the new behavior should become a lasting rule.
 
 **Before declaring any task or milestone done, run and pass:**
@@ -55,7 +58,7 @@ Keep these exact commands accurate in `README.md`. Fixed ports: frontend **5173*
 
 **No CORS anywhere.** The frontend calls relative paths (`/api/...`); `vite.config.ts` proxies `/api` to `http://localhost:8080`. The Go server never sets CORS headers, and the frontend never hardcodes a backend origin. This also means a future single-binary build (Go serving the built frontend via `embed.FS`) works with zero code changes — that build is explicitly deferred, not for now.
 
-**Configuration:** environment variables with sensible defaults so zero setup is required — `DB_PATH` (default `./data/draft.db`), `BACKEND_PORT` (default `8080`). No `.env` machinery unless a third variable ever appears. Sleeper username / league ID / draft ID / polling settings are **application settings stored in SQLite** (`app_settings`, singleton row `id = 1`), editable on the Admin page — never compile-time constants, never env vars.
+**Configuration:** environment variables with sensible defaults so zero setup is required — `DB_PATH` (default `./data/draft.db`), `BACKEND_PORT` (default `8080`). Provider credentials such as `FANTASYPROS_API_KEY` live only in ignored `backend/.env` or the shell environment and are documented in `backend/.env.example`; never log, cache, or persist them. Sleeper username / league ID / draft ID / polling settings are **application settings stored in SQLite** (`app_settings`, singleton row `id = 1`), editable on the Admin page — never compile-time constants, never env vars.
 
 ---
 
@@ -65,7 +68,7 @@ Keep these exact commands accurate in `README.md`. Fixed ports: frontend **5173*
 
 **Backend:** Go, `net/http`, `chi` for routing, standard `database/sql` with `modernc.org/sqlite` (pure Go — the build must never require cgo), handwritten SQL, standard `encoding/json`, standard `net/http` client for Sleeper. No ORM, no `sqlc` initially — the query surface is small and readability wins; revisit only if query maintenance becomes painful.
 
-**Database:** a single SQLite file at `DB_PATH`. It durably stores players, historical stats, ADP, tiers, odds, settings, and draft/pick history so nothing must be re-fetched on every start. Backing up the database = copying the file. `data/` is gitignored.
+**Database:** a single SQLite file at `DB_PATH`. It durably stores players, historical stats, ADP, expert rankings, tiers, odds, settings, and draft/pick history so nothing must be re-fetched on every start. Backing up the database = copying the file. `data/` is gitignored.
 
 **Migrations:** plain SQL files in `backend/migrations/`, embedded with `embed.FS` and applied automatically at server startup via the `goose` library (`sqlite3` dialect). No migration CLI to install, no separate migrate step.
 
@@ -177,6 +180,7 @@ backend/
     database/   db.go (open + migrate), players.go, settings.go, drafts.go
     sleeper/    client.go, types.go
     nflverse/   public weekly-stats and player-ID CSV clients/parsers
+    fantasypros/ authenticated Aggregate ADP and Draft ECR client/wire types
     importer/   explicit per-dataset loaders + rebuild orchestration
     draft/      state.go, poller.go
   migrations/   001_initial.sql, ...   (embedded, applied at startup)
@@ -209,7 +213,8 @@ Extract a component when it's reused, a page becomes hard to read, or a distinct
 - **draft** = one Sleeper draft event; **pick** = one player selected in it.
 - **taken / available** = derived per-draft state.
 - **Aggregate ADP** = FantasyPros Aggregate ADP specifically. Never a computed cross-provider average.
-- **tier** = externally supplied/sample projected position tier — never an app-generated recommendation.
+- **ECR** = FantasyPros all-position half-PPR Draft Expert Consensus Ranking; it is an overall rank. Position rank is stored and displayed separately.
+- **tier** = the overall tier supplied with FantasyPros Draft ECR — never an app-generated recommendation.
 
 **Data conventions:** ISO-8601 UTC timestamps in JSON and in the DB (per §4); integer seasons (`2025`) and weeks (`1`); numbers are JSON numbers (only inherently string-like external IDs are strings). Missing values render as `—`, never as `0`, and sort after real values. Season-specific values live in season/source tables, never as `2025_*` columns on `players`.
 
@@ -235,7 +240,7 @@ Do not build unless explicitly requested later: auth, accounts, multi-tenancy, c
 
 Do not build speculative features just because the schema could support them. If the project is ever deployed publicly, revisit security before treating it as safe.
 
-**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** ADP ingestion mechanisms, odds provider/consensus methodology, tier source and methodology, extra scoring settings, deployment.
+**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** odds provider/consensus methodology, extra scoring settings, deployment.
 
 ---
 
