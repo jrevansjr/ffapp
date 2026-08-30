@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. M6.4 builds a persistent SQLite database from real NFL teams, active Sleeper QB/RB/WR/TE players, 2025 nflverse weekly statistics, and 2026 FantasyPros draft rankings plus volume projections.
+A personal, local-first fantasy football draft-day dashboard. M6.5 verifies a persistent SQLite database built from real NFL teams, active Sleeper QB/RB/WR/TE players, 2025 nflverse weekly statistics, and 2026 FantasyPros draft rankings plus volume projections.
 
 ## Prerequisites
 
@@ -48,7 +48,7 @@ go run ./cmd/data rebuild --confirm
 
 Stop the backend before rebuilding. When `./data/draft.db` already exists, the command creates a consistent timestamped backup under `./data/backups/`, builds and validates a temporary database, and replaces the active database only after success.
 
-M6.4's build contains:
+The audited M6.5 build contains:
 
 - the reviewed list of 32 NFL teams;
 - active QB/RB/WR/TE players from Sleeper's public `/players/nfl` endpoint;
@@ -74,6 +74,8 @@ go run ./cmd/data build
 ```
 
 All loaders are idempotent. `build` currently runs teams, players, stats, FantasyPros draft data, then projections. `load stats` uses the validated local cache when present; add `--refresh` only when you deliberately want to download and validate both public provider files again. `load fantasypros`, `load projections`, `build`, and `rebuild` are cache-only and cannot make a FantasyPros request. Each refresh caches one response; the loaders validate and transactionally replace their own 2026 rows.
+
+`rebuild --confirm` validates the complete replacement before installing it: expected row coverage, all 18 historical weeks, season/weekly aggregate agreement, exact provider-ID uniqueness, source/season constraints, position-appropriate projections, UTC RFC3339 timestamps, empty deferred tables, foreign keys, and SQLite integrity. A failed build or audit leaves the current database and its backup intact.
 
 The stats import uses public downloads and needs no API key:
 
@@ -108,13 +110,15 @@ npm run dev
 
 Open `http://localhost:5173`. Vite proxies relative `/api` requests to `http://localhost:8080`; the Go server does not enable CORS. The header health indicator proves the frontend is communicating with the backend through that proxy.
 
-## Current M6.4 behavior
+## Current M6.5 behavior
 
 Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
 
 After the three explicit refreshes and a cache-only load/rebuild, Overview shows Aggregate ADP, ECR fields, and all six projection columns. Draft Day groups all 2025 performance values above the charts and shows a separate position-aware 2026 FantasyPros projection card below them. Missing or unmatched values remain `—` rather than zero.
 
-Odds and live picks are deliberately not populated yet. Projections are not presented as odds, and team-win totals are hidden. The final real-data audit is M6.5, live Sleeper synchronization begins in M7, manual fallback is M8, and real season odds are deferred until afterward.
+Odds and live picks are deliberately not populated yet. Projections are not presented as odds, and team-win totals are hidden. The real-data audit is complete; live Sleeper synchronization begins in M7, manual fallback is M8, and real season odds are deferred until afterward.
+
+The clean M6.5 rebuild was verified with 32 NFL teams, 3,045 active fantasy-position players, 6,033 weekly rows across all 18 weeks, 604 derived season rows, 314 Aggregate ADP rows, 750 ECR/tier rows, and 510 projection rows. These counts describe the current provider snapshots and can change after a deliberate refresh. SQLite integrity and foreign-key checks passed, no synthetic players remained, and `odds`, `drafts`, and `draft_picks` were empty as required.
 
 Admin continues to store Sleeper username, league ID, draft ID, polling toggle, and polling interval in SQLite. Player-pool imports are terminal commands rather than Admin actions. Sleeper's public API requires no credential, so no token/API-key/password field exists.
 

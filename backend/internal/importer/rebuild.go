@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/jrevansjr/ffapp/backend/internal/database"
 )
@@ -20,8 +21,17 @@ type RebuildResult struct {
 	DBPath     string
 }
 
-// Rebuild constructs and validates a new M6.4 database before replacing the
-// configured database. The caller must require explicit user confirmation.
+type validationMinimums struct {
+	Players     int
+	WeeklyStats int
+	SeasonStats int
+	FantasyPros int
+	Projections int
+}
+
+// Rebuild constructs and validates the complete real-data database before
+// replacing the configured database. The caller must require explicit user
+// confirmation.
 func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 	if err := os.MkdirAll(filepath.Dir(runner.DBPath), 0o755); err != nil {
 		return RebuildResult{}, fmt.Errorf("create database directory: %w", err)
@@ -49,7 +59,7 @@ func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 			err,
 		)
 	}
-	if err := validateM64Database(temporaryPath); err != nil {
+	if err := validateRealDataDatabase(temporaryPath, runner.validationMinimums()); err != nil {
 		return RebuildResult{}, fmt.Errorf(
 			"validate replacement database (existing database preserved; inspect %s): %w",
 			temporaryPath,
@@ -63,6 +73,16 @@ func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 		return RebuildResult{}, fmt.Errorf("install replacement database: %w", err)
 	}
 	return RebuildResult{BackupPath: backupPath, DBPath: runner.DBPath}, nil
+}
+
+func (runner *Runner) validationMinimums() validationMinimums {
+	return validationMinimums{
+		Players:     runner.MinimumPlayerCount,
+		WeeklyStats: runner.MinimumWeeklyStats,
+		SeasonStats: runner.MinimumSeasonStats,
+		FantasyPros: runner.MinimumFantasyProsRows,
+		Projections: runner.MinimumProjectionRows,
+	}
 }
 
 func (runner *Runner) backupCurrentDatabase() (string, error) {
@@ -98,7 +118,7 @@ func (runner *Runner) backupCurrentDatabase() (string, error) {
 	return backupPath, nil
 }
 
-func validateM64Database(dbPath string) error {
+func validateRealDataDatabase(dbPath string, minimums validationMinimums) error {
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return err
@@ -120,11 +140,11 @@ func validateM64Database(dbPath string) error {
 	`).Scan(&playerCount); err != nil {
 		return fmt.Errorf("count active fantasy players: %w", err)
 	}
-	if playerCount < minimumRealPlayerCount {
+	if playerCount < minimums.Players {
 		return fmt.Errorf(
 			"active fantasy player count is %d; expected at least %d",
 			playerCount,
-			minimumRealPlayerCount,
+			minimums.Players,
 		)
 	}
 	var invalidPlayers int
@@ -140,19 +160,22 @@ func validateM64Database(dbPath string) error {
 	if invalidPlayers != 0 {
 		return fmt.Errorf("found %d invalid or sample player rows", invalidPlayers)
 	}
+	if err := validateUniqueProviderIDs(db); err != nil {
+		return err
+	}
 	weeklyCount, err := tableCount(db, "player_week_stats")
 	if err != nil {
 		return err
 	}
-	if weeklyCount < minimumRealWeeklyStatRows {
-		return fmt.Errorf("weekly stat count is %d; expected at least %d", weeklyCount, minimumRealWeeklyStatRows)
+	if weeklyCount < minimums.WeeklyStats {
+		return fmt.Errorf("weekly stat count is %d; expected at least %d", weeklyCount, minimums.WeeklyStats)
 	}
 	seasonCount, err := tableCount(db, "player_season_stats")
 	if err != nil {
 		return err
 	}
-	if seasonCount < minimumRealSeasonStatRows {
-		return fmt.Errorf("season stat count is %d; expected at least %d", seasonCount, minimumRealSeasonStatRows)
+	if seasonCount < minimums.SeasonStats {
+		return fmt.Errorf("season stat count is %d; expected at least %d", seasonCount, minimums.SeasonStats)
 	}
 	var coveredWeeks int
 	if err := db.QueryRow(`
@@ -229,12 +252,12 @@ func validateM64Database(dbPath string) error {
 		`).Scan(&count); err != nil {
 			return fmt.Errorf("count FantasyPros rows in %s: %w", table, err)
 		}
-		if count < minimumRealFantasyProsRows {
+		if count < minimums.FantasyPros {
 			return fmt.Errorf(
 				"FantasyPros row count in %s is %d; expected at least %d",
 				table,
 				count,
-				minimumRealFantasyProsRows,
+				minimums.FantasyPros,
 			)
 		}
 	}
@@ -289,11 +312,11 @@ func validateM64Database(dbPath string) error {
 	`).Scan(&projectionCount); err != nil {
 		return fmt.Errorf("count FantasyPros projection rows: %w", err)
 	}
-	if projectionCount < minimumRealProjectionRows {
+	if projectionCount < minimums.Projections {
 		return fmt.Errorf(
 			"FantasyPros projection row count is %d; expected at least %d",
 			projectionCount,
-			minimumRealProjectionRows,
+			minimums.Projections,
 		)
 	}
 	var invalidProjections int
@@ -341,7 +364,7 @@ func validateM64Database(dbPath string) error {
 			return err
 		}
 		if count != 0 {
-			return fmt.Errorf("%s contains %d rows; M6.3 rebuild expects none", table, count)
+			return fmt.Errorf("%s contains %d rows; real-data rebuild expects none", table, count)
 		}
 	}
 	rows, err := db.Query(`PRAGMA foreign_key_check`)
@@ -352,7 +375,73 @@ func validateM64Database(dbPath string) error {
 	if rows.Next() {
 		return fmt.Errorf("foreign key check found a violation")
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if err := validateIntegrity(db); err != nil {
+		return err
+	}
+	return validateReferenceTimestamps(db)
+}
+
+func validateUniqueProviderIDs(db *sql.DB) error {
+	for _, column := range []string{"gsis_id", "fantasypros_id"} {
+		var duplicates int
+		if err := db.QueryRow(`
+			SELECT COUNT(*) FROM (
+				SELECT ` + column + `
+				FROM players
+				WHERE active = 1 AND ` + column + ` IS NOT NULL
+				GROUP BY ` + column + `
+				HAVING COUNT(*) > 1
+			)
+		`).Scan(&duplicates); err != nil {
+			return fmt.Errorf("validate unique %s values: %w", column, err)
+		}
+		if duplicates != 0 {
+			return fmt.Errorf("found %d duplicated active-player %s values", duplicates, column)
+		}
+	}
+	return nil
+}
+
+func validateIntegrity(db *sql.DB) error {
+	var result string
+	if err := db.QueryRow(`PRAGMA integrity_check`).Scan(&result); err != nil {
+		return fmt.Errorf("run SQLite integrity check: %w", err)
+	}
+	if result != "ok" {
+		return fmt.Errorf("SQLite integrity check returned %q", result)
+	}
+	return nil
+}
+
+func validateReferenceTimestamps(db *sql.DB) error {
+	rows, err := db.Query(`
+		SELECT 'app_settings.updated_at', updated_at FROM app_settings
+		UNION ALL SELECT 'app_settings.players_synced_at', players_synced_at FROM app_settings
+		UNION ALL SELECT 'player_adp.updated_at', updated_at FROM player_adp
+		UNION ALL SELECT 'player_rankings.updated_at', updated_at FROM player_rankings
+		UNION ALL SELECT 'player_tiers.updated_at', updated_at FROM player_tiers
+		UNION ALL SELECT 'player_projections.updated_at', updated_at FROM player_projections
+	`)
+	if err != nil {
+		return fmt.Errorf("load reference timestamps: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var field, value string
+		if err := rows.Scan(&field, &value); err != nil {
+			return fmt.Errorf("scan reference timestamp: %w", err)
+		}
+		if parsed, err := time.Parse(time.RFC3339, value); err != nil || parsed.Location() != time.UTC {
+			return fmt.Errorf("%s contains non-UTC RFC3339 timestamp %q", field, value)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read reference timestamps: %w", err)
+	}
+	return nil
 }
 
 func countDistinctStatPlayers(db *sql.DB) (int, error) {
