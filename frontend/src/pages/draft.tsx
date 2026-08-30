@@ -96,7 +96,9 @@ export default function DraftPage() {
   }, [availablePlayers, filters])
 
   const takenCount = displayedPlayers.length - availablePlayers.length
-  const unknownPicks = draftState.data?.picks.filter((pick) => pick.player_id === null) ?? []
+  const unknownSleeperIDs = new Set(draftState.data?.unknown_sleeper_player_ids ?? [])
+  const unknownPicks =
+    draftState.data?.picks.filter((pick) => unknownSleeperIDs.has(pick.sleeper_player_id)) ?? []
 
   return (
     <section aria-labelledby="draft-heading">

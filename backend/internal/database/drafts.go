@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -121,7 +122,9 @@ func SyncDraftPicks(
 		}
 		if err == sql.ErrNoRows {
 			playerID = sql.NullInt64{}
-			unknownCount++
+			if !isIntentionallyUnsupportedDraftPosition(pick.Position) {
+				unknownCount++
+			}
 		}
 
 		_, err = tx.ExecContext(ctx, `
@@ -279,7 +282,7 @@ func GetDraftState(ctx context.Context, db *sql.DB) (DraftState, error) {
 			id := playerID.Int64
 			pick.PlayerID = &id
 			taken[id] = struct{}{}
-		} else {
+		} else if !isIntentionallyUnsupportedDraftPosition(position.String) {
 			unknown[pick.SleeperPlayerID] = struct{}{}
 		}
 		state.Picks = append(state.Picks, pick)
@@ -298,6 +301,17 @@ func GetDraftState(ctx context.Context, db *sql.DB) (DraftState, error) {
 	})
 	sort.Strings(state.UnknownSleeperIDs)
 	return state, nil
+}
+
+// isIntentionallyUnsupportedDraftPosition distinguishes expected unmapped
+// kicker/defense picks from missing fantasy-position players worth surfacing.
+func isIntentionallyUnsupportedDraftPosition(position string) bool {
+	switch strings.ToUpper(strings.TrimSpace(position)) {
+	case "K", "DEF", "DST", "D/ST":
+		return true
+	default:
+		return false
+	}
 }
 
 func ensureDraft(ctx context.Context, tx *sql.Tx, draftID, leagueID, now string) (int64, error) {

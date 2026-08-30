@@ -121,7 +121,7 @@ DELETE /api/draft/manual-picks/{id}
 
 `/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, Aggregate ADP, ECR/position rank/expert range, tier, 2025 season summary fields, 2026 FantasyPros projections, and `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls a provider; imports and draft-pick polling are separate operations. The dormant odds DTO remains separate for later sportsbook data.
 
-`/api/draft/state` is a **read** endpoint: reads settings; returns a clean "not configured" state when no draft ID exists; reads the latest synchronized state from SQLite; resolves local player IDs; combines official + manual picks without duplicates; falls back to persisted picks when Sleeper is down. Shape (may evolve; preserve the concepts):
+`/api/draft/state` is a **read** endpoint: reads settings; returns a clean "not configured" state when no draft ID exists; reads the latest synchronized state from SQLite; resolves local player IDs; combines official + manual picks without duplicates; falls back to persisted picks when Sleeper is down. Kicker and defense picks remain in `picks` but are excluded from unknown-player warnings because those positions are intentionally outside the player pool. Shape (may evolve; preserve the concepts):
 
 ```json
 {

@@ -236,7 +236,9 @@ func TestDraftStateEndpointUsesPersistedSnapshot(t *testing.T) {
 	}
 	if _, err := database.SyncDraftPicks(context.Background(), db, "api-draft", "", []database.DraftPickInput{
 		{PickNumber: 1, SleeperPlayerID: "fixture-qb", FirstName: "Alex", LastName: "Alpha"},
-		{PickNumber: 2, SleeperPlayerID: "unknown", FirstName: "Unknown", LastName: "Rookie"},
+		{PickNumber: 2, SleeperPlayerID: "unknown", FirstName: "Unknown", LastName: "Rookie", Position: "WR"},
+		{PickNumber: 3, SleeperPlayerID: "BUF", FirstName: "Buffalo", LastName: "Bills", Position: "DEF"},
+		{PickNumber: 4, SleeperPlayerID: "kicker", FirstName: "Sample", LastName: "Kicker", Position: "K"},
 	}); err != nil {
 		t.Fatalf("sync API draft fixture: %v", err)
 	}
@@ -248,8 +250,9 @@ func TestDraftStateEndpointUsesPersistedSnapshot(t *testing.T) {
 	var response draftStateResponse
 	decodeResponse(t, recorder, &response)
 	if response.Status != "current" || response.Stale || response.LastSyncedAt == nil ||
-		len(response.Picks) != 2 || len(response.TakenPlayerIDs) != 1 ||
-		response.TakenPlayerIDs[0] != 1 || len(response.UnknownSleeperPlayerIDs) != 1 {
+		len(response.Picks) != 4 || len(response.TakenPlayerIDs) != 1 ||
+		response.TakenPlayerIDs[0] != 1 || len(response.UnknownSleeperPlayerIDs) != 1 ||
+		response.UnknownSleeperPlayerIDs[0] != "unknown" {
 		t.Fatalf("draft state response = %#v", response)
 	}
 	if err := database.RecordDraftSyncFailure(context.Background(), db, "api-draft", ""); err != nil {
@@ -258,7 +261,7 @@ func TestDraftStateEndpointUsesPersistedSnapshot(t *testing.T) {
 	staleRecorder := serveRequest(router, http.MethodGet, "/api/draft/state", "")
 	var stale draftStateResponse
 	decodeResponse(t, staleRecorder, &stale)
-	if stale.Status != "stale" || !stale.Stale || len(stale.Picks) != 2 || stale.Message == "" {
+	if stale.Status != "stale" || !stale.Stale || len(stale.Picks) != 4 || stale.Message == "" {
 		t.Fatalf("stale draft state response = %#v", stale)
 	}
 }

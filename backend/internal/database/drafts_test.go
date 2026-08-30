@@ -127,6 +127,45 @@ func TestDraftSyncFailurePreservesLastKnownPicks(t *testing.T) {
 	}
 }
 
+func TestDraftStateDoesNotWarnForUnsupportedPositions(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "draft.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	if _, err := UpdateSettings(context.Background(), db, EditableSettings{
+		SleeperDraftID: "draft", PollingEnabled: true, PollingInterval: 2000,
+	}); err != nil {
+		t.Fatalf("activate draft: %v", err)
+	}
+
+	picks := []DraftPickInput{
+		{PickNumber: 1, SleeperPlayerID: "unknown-wr", Position: "WR"},
+		{PickNumber: 2, SleeperPlayerID: "unknown-k", Position: "K"},
+		{PickNumber: 3, SleeperPlayerID: "unknown-def", Position: "DEF"},
+		{PickNumber: 4, SleeperPlayerID: "unknown-dst", Position: "dst"},
+		{PickNumber: 5, SleeperPlayerID: "unknown-d-slash-st", Position: " D/ST "},
+	}
+	unknownCount, err := SyncDraftPicks(context.Background(), db, "draft", "", picks)
+	if err != nil {
+		t.Fatalf("SyncDraftPicks() error = %v", err)
+	}
+	if unknownCount != 1 {
+		t.Fatalf("actionable unknown count = %d, want 1", unknownCount)
+	}
+
+	state, err := GetDraftState(context.Background(), db)
+	if err != nil {
+		t.Fatalf("GetDraftState() error = %v", err)
+	}
+	if len(state.Picks) != len(picks) {
+		t.Fatalf("persisted pick count = %d, want %d", len(state.Picks), len(picks))
+	}
+	if len(state.UnknownSleeperIDs) != 1 || state.UnknownSleeperIDs[0] != "unknown-wr" {
+		t.Fatalf("unknown IDs = %#v, want [unknown-wr]", state.UnknownSleeperIDs)
+	}
+}
+
 func TestGetDraftStateUsesConfiguredDraftContext(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "draft.db"))
 	if err != nil {
