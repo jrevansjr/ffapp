@@ -24,7 +24,8 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	}
 	if players[0].Season == nil || players[0].Draft.AggregateADP == nil ||
 		players[0].Draft.ECR == nil || players[0].Draft.Tier == nil ||
-		players[0].Draft.RankStdDev == nil {
+		players[0].Draft.RankStdDev == nil || players[0].Projections == nil ||
+		players[0].Projections.PassingYards == nil {
 		t.Fatal("first player is missing seeded summary data")
 	}
 	for _, player := range players {
@@ -78,5 +79,8 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	}
 	if detail.Weekly[0].PassingYards == 0 {
 		t.Fatal("detail weekly passing yards = 0, want seeded QB yards")
+	}
+	if detail.Projections == nil || detail.Projections.PassingTouchdowns == nil {
+		t.Fatal("detail projections are missing")
 	}
 }

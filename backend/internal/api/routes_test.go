@@ -65,7 +65,8 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	if players[0].Age == nil || players[0].Season == nil ||
 		players[0].Season.AverageFantasyPoints == nil || players[0].Season.TargetsPerGame == nil ||
 		players[0].Draft.AggregateADP == nil || players[0].Draft.ECR == nil ||
-		players[0].Draft.PositionRank == nil || players[0].Draft.RankStdDev == nil {
+		players[0].Draft.PositionRank == nil || players[0].Draft.RankStdDev == nil ||
+		players[0].Projections == nil || players[0].Projections.PassingYards == nil {
 		t.Fatal("player list response is missing display data")
 	}
 	team := players[0].NFLTeam.Abbreviation
@@ -110,7 +111,8 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 	if detail.WeeklySummary.Average == nil || detail.Player.ProviderIDs.Sportradar == nil ||
 		detail.Player.ProviderIDs.GSIS == nil ||
-		detail.Weekly[0].PassingYards == 0 {
+		detail.Weekly[0].PassingYards == 0 || detail.Projections == nil ||
+		detail.Projections.PassingTouchdowns == nil {
 		t.Fatal("player detail is missing summary, provider identity, or passing yards")
 	}
 }
@@ -137,7 +139,7 @@ func TestPlayerDetailHandlesMissingValues(t *testing.T) {
 	decodeResponse(t, recorder, &response)
 	if response.Player.NFLTeam != nil || response.Player.Age != nil || response.Season != nil ||
 		response.Draft.AggregateADP != nil || response.Draft.ECR != nil || response.Draft.Tier != nil ||
-		response.Odds.Touchdowns != nil || response.WeeklySummary.Average != nil {
+		response.Projections != nil || response.Odds.Touchdowns != nil || response.WeeklySummary.Average != nil {
 		t.Fatal("missing optional values should be encoded as null")
 	}
 	if response.Weekly == nil || len(response.Weekly) != 0 {
@@ -301,6 +303,10 @@ func loadAPITestFixture(t *testing.T, db *sql.DB) {
 		) VALUES (1, 2026, 'fantasypros', 10, 2, 7, 14, 2.5, '2026-08-01T00:00:00Z');
 		INSERT INTO player_tiers (player_id, season, source, tier, updated_at)
 		VALUES (1, 2026, 'fantasypros', 2, '2026-08-01T00:00:00Z');
+		INSERT INTO player_projections (
+			player_id, season, source, passing_yards, passing_touchdowns,
+			rushing_yards, rushing_touchdowns, updated_at
+		) VALUES (1, 2026, 'fantasypros', 4000.5, 30.2, 350.1, 4.5, '2026-08-01T00:00:00Z');
 		INSERT INTO odds (season, source, market, player_id, line, captured_at)
 		VALUES (2026, 'fixture', 'total_touchdowns', 1, 1.5, '2026-08-01T00:00:00Z');
 		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)

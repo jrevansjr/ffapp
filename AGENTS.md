@@ -68,7 +68,7 @@ Keep these exact commands accurate in `README.md`. Fixed ports: frontend **5173*
 
 **Backend:** Go, `net/http`, `chi` for routing, standard `database/sql` with `modernc.org/sqlite` (pure Go — the build must never require cgo), handwritten SQL, standard `encoding/json`, standard `net/http` client for Sleeper. No ORM, no `sqlc` initially — the query surface is small and readability wins; revisit only if query maintenance becomes painful.
 
-**Database:** a single SQLite file at `DB_PATH`. It durably stores players, historical stats, ADP, expert rankings, tiers, odds, settings, and draft/pick history so nothing must be re-fetched on every start. Backing up the database = copying the file. `data/` is gitignored.
+**Database:** a single SQLite file at `DB_PATH`. It durably stores players, historical stats, ADP, expert rankings, tiers, projections, odds, settings, and draft/pick history so nothing must be re-fetched on every start. Backing up the database = copying the file. `data/` is gitignored.
 
 **Migrations:** plain SQL files in `backend/migrations/`, embedded with `embed.FS` and applied automatically at server startup via the `goose` library (`sqlite3` dialect). No migration CLI to install, no separate migrate step.
 
@@ -154,7 +154,7 @@ Sleeper IDs (player, league, draft, roster owner) are **strings** everywhere —
 ## 7. Data ownership rules (load-bearing — do not violate)
 
 1. **Sleeper is authoritative for live picks.** During live mode the latest successful Sleeper response is truth for Sleeper-reported picks. The backend persists them for restart resilience, debugging, and fallback.
-2. **SQLite is authoritative for local/reference data:** players, NFL teams, stats, ADP, tiers, odds, settings, persisted pick history.
+2. **SQLite is authoritative for local/reference data:** players, NFL teams, stats, ADP, tiers, projections, odds, settings, persisted pick history.
 3. **"Taken" is never a player property.** No mutable `players.taken` column, ever. A player is taken only in the context of a specific draft; availability is derived from the active draft's picks. The frontend may hold a derived in-memory `Set` of taken IDs for rendering.
 4. **Sync is idempotent.** Re-fetching the same Sleeper picks must not create duplicate rows. Key pick identity on (draft, sleeper_player_id / pick_no) as appropriate. A player manually marked drafted who later appears in official Sleeper picks must not produce contradictory duplicate availability.
 5. **Unknown Sleeper player IDs never break sync.** Persist the Sleeper player ID with a nullable local `player_id` mapping, surface it for debugging (and render the name from pick `metadata` when available), and keep syncing.
@@ -215,6 +215,7 @@ Extract a component when it's reused, a page becomes hard to read, or a distinct
 - **Aggregate ADP** = FantasyPros Aggregate ADP specifically. Never a computed cross-provider average.
 - **ECR** = FantasyPros all-position half-PPR Draft Expert Consensus Ranking; it is an overall rank. Position rank is stored and displayed separately.
 - **tier** = the overall tier supplied with FantasyPros Draft ECR — never an app-generated recommendation.
+- **projection** = a provider forecast, currently FantasyPros 2026 volume stats — never label it as a sportsbook line or historical result.
 
 **Data conventions:** ISO-8601 UTC timestamps in JSON and in the DB (per §4); integer seasons (`2025`) and weeks (`1`); numbers are JSON numbers (only inherently string-like external IDs are strings). Missing values render as `—`, never as `0`, and sort after real values. Season-specific values live in season/source tables, never as `2025_*` columns on `players`.
 

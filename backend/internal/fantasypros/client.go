@@ -64,22 +64,59 @@ func (client *Client) FetchECR(ctx context.Context) (ECRDataset, []byte, error) 
 	return dataset, body, nil
 }
 
+// FetchProjections makes one approved request for 2026 preseason volume
+// projections across all four fantasy positions.
+func (client *Client) FetchProjections(ctx context.Context) (ProjectionDataset, []byte, error) {
+	query := make(url.Values)
+	query.Set("positions", "QB:RB:WR:TE")
+	query.Set("week", "0")
+	query.Set("scoring", "HALF")
+	body, fetchedAt, err := client.requestJSON(
+		ctx,
+		DatasetProjections,
+		"/nfl/"+strconv.Itoa(Season)+"/projections",
+		query,
+	)
+	if err != nil {
+		return ProjectionDataset{}, nil, err
+	}
+	dataset, err := ParseProjections(body, fetchedAt)
+	if err != nil {
+		return ProjectionDataset{}, nil, err
+	}
+	return dataset, body, nil
+}
+
 func (client *Client) fetch(
 	ctx context.Context,
 	dataset DatasetName,
 	rankingType string,
 ) ([]byte, time.Time, error) {
-	if strings.TrimSpace(client.APIKey) == "" {
-		return nil, time.Time{}, fmt.Errorf("FANTASYPROS_API_KEY is required to refresh %s", dataset)
-	}
-	endpoint, err := url.Parse(strings.TrimRight(client.BaseURL, "/") + "/nfl/" + strconv.Itoa(Season) + "/consensus-rankings")
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("build FantasyPros URL: %w", err)
-	}
-	query := endpoint.Query()
+	query := make(url.Values)
 	query.Set("position", "ALL")
 	query.Set("type", rankingType)
 	query.Set("scoring", "HALF")
+	return client.requestJSON(
+		ctx,
+		dataset,
+		"/nfl/"+strconv.Itoa(Season)+"/consensus-rankings",
+		query,
+	)
+}
+
+func (client *Client) requestJSON(
+	ctx context.Context,
+	dataset DatasetName,
+	path string,
+	query url.Values,
+) ([]byte, time.Time, error) {
+	if strings.TrimSpace(client.APIKey) == "" {
+		return nil, time.Time{}, fmt.Errorf("FANTASYPROS_API_KEY is required to refresh %s", dataset)
+	}
+	endpoint, err := url.Parse(strings.TrimRight(client.BaseURL, "/") + path)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("build FantasyPros URL: %w", err)
+	}
 	endpoint.RawQuery = query.Encode()
 
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)

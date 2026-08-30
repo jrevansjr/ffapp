@@ -45,6 +45,10 @@ func loadPlayerQueryFixture(t *testing.T, db *sql.DB) {
 		) VALUES (1, 2026, 'fantasypros', 10, 2, 7, 14, 2.5, '2026-08-01T00:00:00Z');
 		INSERT INTO player_tiers (player_id, season, source, tier, updated_at)
 		VALUES (1, 2026, 'fantasypros', 2, '2026-08-01T00:00:00Z');
+		INSERT INTO player_projections (
+			player_id, season, source, passing_yards, passing_touchdowns,
+			rushing_yards, rushing_touchdowns, updated_at
+		) VALUES (1, 2026, 'fantasypros', 4000.5, 30.2, 350.1, 4.5, '2026-08-01T00:00:00Z');
 		INSERT INTO odds (
 			season, source, market, player_id, line, captured_at
 		) VALUES (2026, 'fixture', 'total_touchdowns', 1, 1.5, '2026-08-01T00:00:00Z');

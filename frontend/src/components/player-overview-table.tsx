@@ -183,18 +183,54 @@ const columns = columnHelper.columns([
     meta: { numeric: true },
     cell: ({ getValue }) => formatNumber(getValue(), 1),
   }),
-  columnHelper.accessor((player) => player.odds.touchdown_line ?? undefined, {
-    id: "touchdownLine",
-    header: "2026 Vegas TD O/U",
+  columnHelper.accessor((player) => player.projections?.passing_yards ?? undefined, {
+    id: "projectedPassingYards",
+    header: "2026 Projected Passing Yards",
     sortFn: "basic",
     sortDescFirst: false,
     sortUndefined: "last",
     meta: { numeric: true },
     cell: ({ getValue }) => formatNumber(getValue(), 1),
   }),
-  columnHelper.accessor((player) => player.odds.team_win_line ?? undefined, {
-    id: "teamWinLine",
-    header: "2026 Vegas Team Win O/U",
+  columnHelper.accessor((player) => player.projections?.passing_touchdowns ?? undefined, {
+    id: "projectedPassingTouchdowns",
+    header: "2026 Projected Passing TDs",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatNumber(getValue(), 1),
+  }),
+  columnHelper.accessor((player) => player.projections?.rushing_yards ?? undefined, {
+    id: "projectedRushingYards",
+    header: "2026 Projected Rushing Yards",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatNumber(getValue(), 1),
+  }),
+  columnHelper.accessor((player) => player.projections?.rushing_touchdowns ?? undefined, {
+    id: "projectedRushingTouchdowns",
+    header: "2026 Projected Rushing TDs",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatNumber(getValue(), 1),
+  }),
+  columnHelper.accessor((player) => player.projections?.receiving_yards ?? undefined, {
+    id: "projectedReceivingYards",
+    header: "2026 Projected Receiving Yards",
+    sortFn: "basic",
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ getValue }) => formatNumber(getValue(), 1),
+  }),
+  columnHelper.accessor((player) => player.projections?.receiving_touchdowns ?? undefined, {
+    id: "projectedReceivingTouchdowns",
+    header: "2026 Projected Receiving TDs",
     sortFn: "basic",
     sortDescFirst: false,
     sortUndefined: "last",
@@ -225,7 +261,7 @@ export default function PlayerOverviewTable({ players }: { players: PlayerListIt
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="min-w-[1820px] w-full border-collapse text-left text-xs">
+      <table className="min-w-[2420px] w-full border-collapse text-left text-xs">
         <thead className="bg-muted text-muted-foreground">
           {playerTable.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>

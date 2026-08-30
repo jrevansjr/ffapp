@@ -20,7 +20,7 @@ type RebuildResult struct {
 	DBPath     string
 }
 
-// Rebuild constructs and validates a new M6.3 database before replacing the
+// Rebuild constructs and validates a new M6.4 database before replacing the
 // configured database. The caller must require explicit user confirmation.
 func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 	if err := os.MkdirAll(filepath.Dir(runner.DBPath), 0o755); err != nil {
@@ -49,7 +49,7 @@ func (runner *Runner) Rebuild(ctx context.Context) (RebuildResult, error) {
 			err,
 		)
 	}
-	if err := validateM63Database(temporaryPath); err != nil {
+	if err := validateM64Database(temporaryPath); err != nil {
 		return RebuildResult{}, fmt.Errorf(
 			"validate replacement database (existing database preserved; inspect %s): %w",
 			temporaryPath,
@@ -98,7 +98,7 @@ func (runner *Runner) backupCurrentDatabase() (string, error) {
 	return backupPath, nil
 }
 
-func validateM63Database(dbPath string) error {
+func validateM64Database(dbPath string) error {
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return err
@@ -280,6 +280,56 @@ func validateM63Database(dbPath string) error {
 	}
 	if invalidTiers != 0 {
 		return fmt.Errorf("found %d tier rows outside the M6.3 contract", invalidTiers)
+	}
+	var projectionCount int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM player_projections
+		WHERE season = 2026 AND source = 'fantasypros'
+	`).Scan(&projectionCount); err != nil {
+		return fmt.Errorf("count FantasyPros projection rows: %w", err)
+	}
+	if projectionCount < minimumRealProjectionRows {
+		return fmt.Errorf(
+			"FantasyPros projection row count is %d; expected at least %d",
+			projectionCount,
+			minimumRealProjectionRows,
+		)
+	}
+	var invalidProjections int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM player_projections AS projections
+		JOIN players ON players.id = projections.player_id
+		WHERE projections.season != 2026
+			OR projections.source != 'fantasypros'
+			OR projections.updated_at = ''
+			OR COALESCE(projections.passing_yards, 0) < 0
+			OR COALESCE(projections.passing_touchdowns, 0) < 0
+			OR COALESCE(projections.rushing_yards, 0) < 0
+			OR COALESCE(projections.rushing_touchdowns, 0) < 0
+			OR COALESCE(projections.receiving_yards, 0) < 0
+			OR COALESCE(projections.receiving_touchdowns, 0) < 0
+			OR (players.position = 'QB' AND (
+				projections.passing_yards IS NULL OR projections.passing_touchdowns IS NULL
+				OR projections.rushing_yards IS NULL OR projections.rushing_touchdowns IS NULL
+				OR projections.receiving_yards IS NOT NULL OR projections.receiving_touchdowns IS NOT NULL
+			))
+			OR (players.position = 'RB' AND (
+				projections.rushing_yards IS NULL OR projections.rushing_touchdowns IS NULL
+				OR projections.receiving_yards IS NULL OR projections.receiving_touchdowns IS NULL
+				OR projections.passing_yards IS NOT NULL OR projections.passing_touchdowns IS NOT NULL
+			))
+			OR (players.position IN ('WR', 'TE') AND (
+				projections.receiving_yards IS NULL OR projections.receiving_touchdowns IS NULL
+				OR projections.passing_yards IS NOT NULL OR projections.passing_touchdowns IS NOT NULL
+				OR projections.rushing_yards IS NOT NULL OR projections.rushing_touchdowns IS NOT NULL
+			))
+	`).Scan(&invalidProjections); err != nil {
+		return fmt.Errorf("validate FantasyPros projections: %w", err)
+	}
+	if invalidProjections != 0 {
+		return fmt.Errorf("found %d projection rows outside the M6.4 contract", invalidProjections)
 	}
 	for _, table := range []string{
 		"odds",

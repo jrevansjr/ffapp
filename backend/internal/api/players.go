@@ -54,23 +54,36 @@ type playerListOddsResponse struct {
 	TeamWinLine   *float64 `json:"team_win_line"`
 }
 
+type playerProjectionsResponse struct {
+	Season              int      `json:"season"`
+	Source              string   `json:"source"`
+	PassingYards        *float64 `json:"passing_yards"`
+	PassingTouchdowns   *float64 `json:"passing_touchdowns"`
+	RushingYards        *float64 `json:"rushing_yards"`
+	RushingTouchdowns   *float64 `json:"rushing_touchdowns"`
+	ReceivingYards      *float64 `json:"receiving_yards"`
+	ReceivingTouchdowns *float64 `json:"receiving_touchdowns"`
+	UpdatedAt           string   `json:"updated_at"`
+}
+
 type playerListResponse struct {
-	ID                 int64                  `json:"id"`
-	SleeperPlayerID    *string                `json:"sleeper_player_id"`
-	FirstName          string                 `json:"first_name"`
-	LastName           string                 `json:"last_name"`
-	Position           string                 `json:"position"`
-	NFLTeam            *playerTeamResponse    `json:"nfl_team"`
-	Age                *int                   `json:"age"`
-	Number             *int                   `json:"number"`
-	YearsExp           *int                   `json:"years_exp"`
-	DepthChartPosition *string                `json:"depth_chart_position"`
-	DepthChartOrder    *int                   `json:"depth_chart_order"`
-	InjuryStatus       *string                `json:"injury_status"`
-	Draft              playerDraftResponse    `json:"draft"`
-	Season             *seasonStatsResponse   `json:"season"`
-	Odds               playerListOddsResponse `json:"odds"`
-	IsTaken            bool                   `json:"is_taken"`
+	ID                 int64                      `json:"id"`
+	SleeperPlayerID    *string                    `json:"sleeper_player_id"`
+	FirstName          string                     `json:"first_name"`
+	LastName           string                     `json:"last_name"`
+	Position           string                     `json:"position"`
+	NFLTeam            *playerTeamResponse        `json:"nfl_team"`
+	Age                *int                       `json:"age"`
+	Number             *int                       `json:"number"`
+	YearsExp           *int                       `json:"years_exp"`
+	DepthChartPosition *string                    `json:"depth_chart_position"`
+	DepthChartOrder    *int                       `json:"depth_chart_order"`
+	InjuryStatus       *string                    `json:"injury_status"`
+	Draft              playerDraftResponse        `json:"draft"`
+	Season             *seasonStatsResponse       `json:"season"`
+	Projections        *playerProjectionsResponse `json:"projections"`
+	Odds               playerListOddsResponse     `json:"odds"`
+	IsTaken            bool                       `json:"is_taken"`
 }
 
 type providerIDsResponse struct {
@@ -148,12 +161,13 @@ type weeklySummaryResponse struct {
 }
 
 type playerDetailResponse struct {
-	Player        playerProfileResponse `json:"player"`
-	Season        *seasonStatsResponse  `json:"season"`
-	Draft         playerDraftResponse   `json:"draft"`
-	Odds          playerOddsResponse    `json:"odds"`
-	Weekly        []weeklyStatsResponse `json:"weekly"`
-	WeeklySummary weeklySummaryResponse `json:"weekly_summary"`
+	Player        playerProfileResponse      `json:"player"`
+	Season        *seasonStatsResponse       `json:"season"`
+	Draft         playerDraftResponse        `json:"draft"`
+	Projections   *playerProjectionsResponse `json:"projections"`
+	Odds          playerOddsResponse         `json:"odds"`
+	Weekly        []weeklyStatsResponse      `json:"weekly"`
+	WeeklySummary weeklySummaryResponse      `json:"weekly_summary"`
 }
 
 // handlePlayers returns the compact Overview/Draft Day dataset in one request.
@@ -237,6 +251,7 @@ func newPlayerListResponse(player database.PlayerListItem, now time.Time) player
 		InjuryStatus:       player.InjuryStatus,
 		Draft:              newPlayerDraftResponse(player.Draft),
 		Season:             newSeasonStatsResponse(player.Season),
+		Projections:        newPlayerProjectionsResponse(player.Projections),
 		Odds: playerListOddsResponse{
 			TouchdownLine: player.TouchdownLine,
 			TeamWinLine:   player.TeamWinLine,
@@ -305,9 +320,27 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 		},
 		Season:        newSeasonStatsResponse(detail.Season),
 		Draft:         newPlayerDraftResponse(detail.Draft),
+		Projections:   newPlayerProjectionsResponse(detail.Projections),
 		Odds:          newPlayerOddsResponse(detail.Odds),
 		Weekly:        weekly,
 		WeeklySummary: summarize(points),
+	}
+}
+
+func newPlayerProjectionsResponse(projections *database.PlayerProjections) *playerProjectionsResponse {
+	if projections == nil {
+		return nil
+	}
+	return &playerProjectionsResponse{
+		Season:              projections.Season,
+		Source:              projections.Source,
+		PassingYards:        projections.PassingYards,
+		PassingTouchdowns:   projections.PassingTouchdowns,
+		RushingYards:        projections.RushingYards,
+		RushingTouchdowns:   projections.RushingTouchdowns,
+		ReceivingYards:      projections.ReceivingYards,
+		ReceivingTouchdowns: projections.ReceivingTouchdowns,
+		UpdatedAt:           projections.UpdatedAt,
 	}
 }
 

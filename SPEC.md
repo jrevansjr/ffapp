@@ -40,8 +40,12 @@ Columns, in this order unless a small UX adjustment is clearly better:
 14. 2025 Average Fantasy Points
 15. 2025 Targets Per Game
 16. 2025 Rushing Attempts Per Game (derived from season totals and games played)
-17. 2026 Vegas O/U TDs
-18. 2026 Vegas Team Win O/U
+17. 2026 FantasyPros Projected Passing Yards
+18. 2026 FantasyPros Projected Passing TDs
+19. 2026 FantasyPros Projected Rushing Yards
+20. 2026 FantasyPros Projected Rushing TDs
+21. 2026 FantasyPros Projected Receiving Yards
+22. 2026 FantasyPros Projected Receiving TDs
 
 Numeric columns sort numerically; missing values render `—` (never `0`) and sort last. No server-side pagination or virtualization — the pool is small.
 
@@ -60,7 +64,7 @@ The primary live-draft page.
 | Available Players                    | Player Inspector       |
 | sortable/filterable table            | summary                |
 |                                      | charts                 |
-|                                      | odds / ADPs            |
+|                                      | projections / ADPs     |
 |                                      | manual action          |
 +--------------------------------------+------------------------+
 ```
@@ -77,9 +81,9 @@ Prioritize quick draft decisions.
 
 - **Header:** name, position, NFL team, FantasyPros overall tier, Aggregate ADP, overall ECR, and position rank.
 - **Expert range:** minimum rank, maximum rank, and standard deviation from the experts included in the ECR response. These describe disagreement; they are not an app-generated recommendation.
-- **2025 weekly 0.5-PPR summary:** average, high, median, low. Median computed correctly. No weekly data → empty state, not fake zeros.
+- **2025 performance:** weekly 0.5-PPR average, high, median, and low grouped with games played, receptions, targets/game, and rushing attempts/game above the charts. Median computed correctly. No weekly data → empty state, not fake zeros.
 - **Two compact Recharts line charts:** weekly fantasy points for every player, plus a position-specific volume chart. WR/TE show weekly targets; RB shows rushing attempts and targets together with separate axes; QB shows weekly passing yards. X = week, Y = value, tooltips required, optional average reference line if visually clean, no elaborate interactions.
-- **Additional data:** 2025 games played, receptions, targets/game; 2026 Vegas TD O/U and team win O/U.
+- **2026 FantasyPros projections:** a separate, position-aware card below the charts. QB shows passing and rushing yards/TDs; RB shows rushing and receiving yards/TDs; WR/TE show receiving yards/TDs. These forecasts are not betting odds.
 - **Manual action:** `Mark Drafted` button (see fallback below).
 - No recommendation scores or decision logic of any kind.
 
@@ -109,13 +113,13 @@ GET  /api/settings                     → settings object
 PUT  /api/settings                     → accepts full settings object
 GET  /api/nfl-teams                    → for filters/display
 GET  /api/players?position=&team=&available_only=
-GET  /api/players/{id}                 → { player, season, adp, tier, odds, weekly: [] }
+GET  /api/players/{id}                 → { player, season, draft, projections, odds, weekly: [] }
 GET  /api/draft/state                  → see below
 POST /api/draft/manual-picks           → { "player_id": 42 }
 DELETE /api/draft/manual-picks/{id}
 ```
 
-`/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, Aggregate ADP, ECR/position rank/expert range, tier, 2025 season summary fields, 2026 odds lines, `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls a provider; imports and draft-pick polling are separate operations.
+`/api/players` returns the fields Overview and Draft Day need (name, position, team, years experience, Aggregate ADP, ECR/position rank/expert range, tier, 2025 season summary fields, 2026 FantasyPros projections, and `is_taken`). These are presentation fields — they do not imply denormalized columns. It reads persisted SQLite data only and never calls a provider; imports and draft-pick polling are separate operations. The dormant odds DTO remains separate for later sportsbook data.
 
 `/api/draft/state` is a **read** endpoint: reads settings; returns a clean "not configured" state when no draft ID exists; reads the latest synchronized state from SQLite; resolves local player IDs; combines official + manual picks without duplicates; falls back to persisted picks when Sleeper is down. Shape (may evolve; preserve the concepts):
 
@@ -147,6 +151,7 @@ Normalized; season/source-varying data in its own tables. SQLite types and conve
 - **`player_adp`** — key `(player_id, season, source)`: adp, updated_at. M6.3 stores FantasyPros Aggregate ADP as source `fantasypros`; additional sources are optional future work.
 - **`player_rankings`** — key `(player_id, season, source)`: overall_rank, position_rank, rank_min, rank_max, rank_std_dev, updated_at. M6.3 stores all-position half-PPR Draft ECR as source `fantasypros`.
 - **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. M6.3 stores the overall tier supplied with FantasyPros Draft ECR; no tier algorithm.
+- **`player_projections`** — key `(player_id, season, source)`: nullable passing/rushing/receiving yards and touchdowns plus updated_at. M6.4 stores FantasyPros preseason forecasts separately from historical stats and sportsbook odds.
 - **`odds`** — one generic table: `id, season, source, market, player_id (nullable), nfl_team_id (nullable), line, over_price (nullable), under_price (nullable), captured_at`. Exactly one of player/team identifies the subject. Markets like `total_touchdowns`, `regular_season_wins`. No consensus math, no ingestion yet.
 - **`drafts`** — `id, sleeper_draft_id, sleeper_league_id, mode (live|manual), status, created_at, updated_at`. Live is the main path.
 - **`draft_picks`** — `id, draft_id, pick_number, round (nullable), draft_slot (nullable), roster_id (nullable), picked_by (nullable), sleeper_player_id, player_id (nullable), source (sleeper|manual), created_at`. Preserve `sleeper_player_id` even when unmapped; idempotent upserts; no duplicate active picks for one player in one draft.
@@ -172,6 +177,7 @@ Current source direction, subject to the per-milestone approval gate where not a
 - Players: Sleeper `/players/nfl`, cached locally because Sleeper requests at most one fetch per day.
 - 2025 weekly/season stats: approved nflverse weekly CSV, joined by GSIS ID. Missing local GSIS IDs may be backfilled only by exact Sleeper ID from the DynastyProcess crosswalk; names are diagnostic only. Season rows are derived from weekly rows. The fixed half-PPR formula is 0.04/pass yard, 4/pass TD, -2/interception, 0.1/rush or receiving yard, 6/rush or receiving TD, 0.5/reception, -2/fumble lost, and 2/passing, rushing, or receiving two-point conversion, with no bonuses.
 - 2026 draft reference data: the official FantasyPros API with active paid HOF access supplies two independently cached all-position, half-PPR responses: Aggregate ADP (`type=ADP`) and Draft ECR (`type=DRAFT`). The ECR response supplies overall ECR, position rank, overall tier, minimum/maximum expert ranks, and standard deviation. Responses below the completeness threshold are rejected. Each authenticated request is a separate explicit CLI action requiring fresh user approval. Database loads and rebuilds are cache-only. Join FantasyPros player IDs through the DynastyProcess crosswalk already cached by M6.2; do not download another identity table and never name-match.
+- 2026 projections: one independently cached FantasyPros preseason response for QB/RB/WR/TE. Persist passing, rushing, and receiving yards/touchdowns exactly by `players.fantasypros_id`; irrelevant position fields remain null. The API labels the response's scoring as standard even when half-PPR is requested, but these volume statistics are scoring-independent. Refreshing projections is one authenticated request requiring fresh user approval; loads and rebuilds are cache-only.
 - Odds: structured season-futures API such as SportsDataIO or reviewed sportsbook CSV. Store named sources; consensus methodology requires a separate decision.
 
 ---
@@ -198,13 +204,15 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M6.3 — FantasyPros draft data.** Cache the approved Aggregate ADP and Draft ECR API queries independently, backfill exact FantasyPros IDs through the DynastyProcess crosswalk, and transactionally populate `player_adp`, `player_rankings`, and `player_tiers`. *Done when:* 2026 Aggregate ADP, overall ECR, position rank, overall tier, expert minimum/maximum, and standard deviation are persisted with FantasyPros provenance/timestamps; failed or incomplete refreshes preserve the prior cache/database; no name guessing occurs; and Overview/Draft Day expose every field with missing values as `—`.
 
-**M6.4 — Season odds.** Choose/approve sources for team win totals and player touchdown lines and populate `odds`. *Done when:* both markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
+**M6.4 — FantasyPros projections placeholder.** Cache one approved all-position 2026 FantasyPros projection response and transactionally populate `player_projections` by exact FantasyPros ID. *Done when:* passing/rushing/receiving yards and TD forecasts are persisted with source/timestamp metadata; incomplete loads preserve prior data; no name guessing occurs; Overview shows all six fields; and Draft Day separates position-aware forecasts from grouped 2025 history. The `odds` table remains empty.
 
 **M6.5 — Full real-data audit.** Register all approved M6.x loaders in the one build/rebuild entry point and verify completeness, foreign keys, ID coverage, and UI behavior. *Done when:* a clean rebuild produces the approved real reference dataset with no synthetic rows and all read APIs/UI states remain healthy.
 
 **M7 — Live draft sync.** Poller + `/api/draft/state`. *Done when:* entering a real draft ID makes Draft Day follow it; exactly one poller runs when enabled+configured; changing ID/interval or disabling cleanly restarts/stops it; new picks remove players without reload; repeated polling never duplicates picks; unknown IDs don't crash sync; Sleeper outage falls back to last known state with a stale flag; polling is toggleable and the interval changes without recompiling. **A Sleeper CPU mock draft is the end-to-end test target — run one before the real draft.**
 
 **M8 — Manual fallback.** Mark-drafted + undo. *Done when:* manual marking updates availability instantly, survives refresh, and official sync never produces contradictory duplicates.
+
+**M8.1 — Real season odds.** After live sync and manual fallback, choose/approve sources for player futures and populate `odds`. Team win totals remain hidden unless explicitly requested again. *Done when:* markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
 
 **M9 — Polish.** Layout, error/loading states, table density, chart legibility, stale-status UX, README, naming, dead code, unnecessary abstractions. No new major features.
 

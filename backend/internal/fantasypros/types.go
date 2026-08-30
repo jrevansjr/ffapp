@@ -1,18 +1,19 @@
-// Package fantasypros retrieves the two approved 2026 draft datasets. It owns
+// Package fantasypros retrieves the approved 2026 draft datasets. It owns
 // the provider wire format but has no database responsibilities.
 package fantasypros
 
 import "time"
 
-// Season is the draft season populated by milestone M6.3.
+// Season is the draft season shared by rankings and preseason projections.
 const Season = 2026
 
 // DatasetName identifies one independently refreshed FantasyPros response.
 type DatasetName string
 
 const (
-	DatasetADP DatasetName = "adp"
-	DatasetECR DatasetName = "ecr"
+	DatasetADP         DatasetName = "adp"
+	DatasetECR         DatasetName = "ecr"
+	DatasetProjections DatasetName = "projections"
 )
 
 // ADPRanking is one player's FantasyPros Aggregate ADP.
@@ -51,7 +52,29 @@ type ECRDataset struct {
 	Rankings  []ExpertRanking
 }
 
-// DatasetNames returns the two caches required for an offline database build.
+// PlayerProjection is one player's FantasyPros preseason volume forecast.
+// Nil fields distinguish a statistic that FantasyPros does not project for the
+// player's position from a real projection of zero.
+type PlayerProjection struct {
+	FantasyProsID       string
+	Name                string
+	Position            string
+	Team                string
+	PassingYards        *float64
+	PassingTouchdowns   *float64
+	RushingYards        *float64
+	RushingTouchdowns   *float64
+	ReceivingYards      *float64
+	ReceivingTouchdowns *float64
+}
+
+// ProjectionDataset is the validated 2026 preseason QB/RB/WR/TE response.
+type ProjectionDataset struct {
+	UpdatedAt   time.Time
+	Projections []PlayerProjection
+}
+
+// DatasetNames returns every cache required for an offline database build.
 func DatasetNames() []DatasetName {
-	return []DatasetName{DatasetADP, DatasetECR}
+	return []DatasetName{DatasetADP, DatasetECR, DatasetProjections}
 }

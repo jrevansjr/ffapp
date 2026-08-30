@@ -49,6 +49,7 @@ type PlayerListItem struct {
 	InjuryStatus       *string
 	Draft              PlayerDraftData
 	Season             *PlayerSeasonStats
+	Projections        *PlayerProjections
 	TouchdownLine      *float64
 	TeamWinLine        *float64
 	IsTaken            bool
@@ -136,6 +137,21 @@ type PlayerDraftData struct {
 	RankStdDev   *float64
 }
 
+// PlayerProjections stores FantasyPros' preseason volume forecast. Fields are
+// nullable because FantasyPros publishes only statistics relevant to a
+// player's position.
+type PlayerProjections struct {
+	Season              int
+	Source              string
+	PassingYards        *float64
+	PassingTouchdowns   *float64
+	RushingYards        *float64
+	RushingTouchdowns   *float64
+	ReceivingYards      *float64
+	ReceivingTouchdowns *float64
+	UpdatedAt           string
+}
+
 // OddsLine is one player- or NFL-team-specific betting market snapshot.
 type OddsLine struct {
 	Season     int
@@ -155,12 +171,13 @@ type PlayerOdds struct {
 
 // PlayerDetail combines normalized player data for the detail API response.
 type PlayerDetail struct {
-	Player  PlayerProfile
-	IsTaken bool
-	Season  *PlayerSeasonStats
-	Draft   PlayerDraftData
-	Odds    PlayerOdds
-	Weekly  []PlayerWeekStats
+	Player      PlayerProfile
+	IsTaken     bool
+	Season      *PlayerSeasonStats
+	Draft       PlayerDraftData
+	Projections *PlayerProjections
+	Odds        PlayerOdds
+	Weekly      []PlayerWeekStats
 }
 
 // ListPlayers returns active players with optional exact position/team filters.
@@ -200,6 +217,15 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			season_stats.rushing_yards,
 			season_stats.receiving_touchdowns,
 			season_stats.rushing_touchdowns,
+			projections.season,
+			projections.source,
+			projections.passing_yards,
+			projections.passing_touchdowns,
+			projections.rushing_yards,
+			projections.rushing_touchdowns,
+			projections.receiving_yards,
+			projections.receiving_touchdowns,
+			projections.updated_at,
 			(SELECT line FROM odds WHERE player_id = players.id AND season = 2026 AND market = 'total_touchdowns' ORDER BY captured_at DESC, source LIMIT 1),
 			(SELECT line FROM odds WHERE nfl_team_id = players.nfl_team_id AND season = 2026 AND market = 'regular_season_wins' ORDER BY captured_at DESC, source LIMIT 1),
 			` + takenPlayerExpression + ` AS is_taken
@@ -219,6 +245,10 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			ON fantasypros_tiers.player_id = players.id
 			AND fantasypros_tiers.season = 2026
 			AND fantasypros_tiers.source = 'fantasypros'
+		LEFT JOIN player_projections AS projections
+			ON projections.player_id = players.id
+			AND projections.season = 2026
+			AND projections.source = 'fantasypros'
 		WHERE players.active = 1
 	`
 	args := make([]any, 0, 2)
@@ -266,6 +296,11 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		ecr, positionRank, tier, rankMin, rankMax                      sql.NullInt64
 		aggregateADP, rankStdDev, fantasyPoints                        sql.NullFloat64
 		touchdownLine, teamWinLine                                     sql.NullFloat64
+		projectionSeason                                               sql.NullInt64
+		projectionSource, projectionUpdatedAt                          sql.NullString
+		passingProjection, passingTDProjection                         sql.NullFloat64
+		rushingProjection, rushingTDProjection                         sql.NullFloat64
+		receivingProjection, receivingTDProjection                     sql.NullFloat64
 		isTaken                                                        int
 	)
 	if err := rows.Scan(
@@ -301,6 +336,15 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		&rushingYards,
 		&receivingTDs,
 		&rushingTDs,
+		&projectionSeason,
+		&projectionSource,
+		&passingProjection,
+		&passingTDProjection,
+		&rushingProjection,
+		&rushingTDProjection,
+		&receivingProjection,
+		&receivingTDProjection,
+		&projectionUpdatedAt,
 		&touchdownLine,
 		&teamWinLine,
 		&isTaken,
@@ -328,6 +372,18 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 	player.TouchdownLine = nullFloatPointer(touchdownLine)
 	player.TeamWinLine = nullFloatPointer(teamWinLine)
 	player.IsTaken = isTaken == 1
+	if projectionSeason.Valid {
+		player.Projections = &PlayerProjections{
+			Season: int(projectionSeason.Int64), Source: projectionSource.String,
+			PassingYards:        nullFloatPointer(passingProjection),
+			PassingTouchdowns:   nullFloatPointer(passingTDProjection),
+			RushingYards:        nullFloatPointer(rushingProjection),
+			RushingTouchdowns:   nullFloatPointer(rushingTDProjection),
+			ReceivingYards:      nullFloatPointer(receivingProjection),
+			ReceivingTouchdowns: nullFloatPointer(receivingTDProjection),
+			UpdatedAt:           projectionUpdatedAt.String,
+		}
+	}
 	if season.Valid {
 		player.Season = &PlayerSeasonStats{
 			Season:               int(season.Int64),
@@ -358,6 +414,9 @@ func GetPlayer(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, e
 	if detail.Draft, err = loadPlayerDraftData(ctx, db, playerID); err != nil {
 		return PlayerDetail{}, err
 	}
+	if detail.Projections, err = loadPlayerProjections(ctx, db, playerID); err != nil {
+		return PlayerDetail{}, err
+	}
 	if detail.Odds, err = loadPlayerOdds(ctx, db, playerID, detail.Player.NFLTeam); err != nil {
 		return PlayerDetail{}, err
 	}
@@ -365,6 +424,37 @@ func GetPlayer(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, e
 		return PlayerDetail{}, err
 	}
 	return detail, nil
+}
+
+func loadPlayerProjections(ctx context.Context, db *sql.DB, playerID int64) (*PlayerProjections, error) {
+	var (
+		projection                                         PlayerProjections
+		passingYards, passingTDs, rushingYards, rushingTDs sql.NullFloat64
+		receivingYards, receivingTDs                       sql.NullFloat64
+	)
+	err := db.QueryRowContext(ctx, `
+		SELECT season, source, passing_yards, passing_touchdowns,
+			rushing_yards, rushing_touchdowns, receiving_yards,
+			receiving_touchdowns, updated_at
+		FROM player_projections
+		WHERE player_id = ? AND season = 2026 AND source = 'fantasypros'
+	`, playerID).Scan(
+		&projection.Season, &projection.Source, &passingYards, &passingTDs,
+		&rushingYards, &rushingTDs, &receivingYards, &receivingTDs, &projection.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get player projections: %w", err)
+	}
+	projection.PassingYards = nullFloatPointer(passingYards)
+	projection.PassingTouchdowns = nullFloatPointer(passingTDs)
+	projection.RushingYards = nullFloatPointer(rushingYards)
+	projection.RushingTouchdowns = nullFloatPointer(rushingTDs)
+	projection.ReceivingYards = nullFloatPointer(receivingYards)
+	projection.ReceivingTouchdowns = nullFloatPointer(receivingTDs)
+	return &projection, nil
 }
 
 func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, error) {

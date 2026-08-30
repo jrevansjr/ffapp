@@ -27,6 +27,7 @@ type Runner struct {
 	MinimumWeeklyStats     int
 	MinimumSeasonStats     int
 	MinimumFantasyProsRows int
+	MinimumProjectionRows  int
 	Now                    func() time.Time
 	Output                 io.Writer
 }
@@ -47,6 +48,7 @@ func NewRunner(dbPath string, output io.Writer) *Runner {
 		MinimumWeeklyStats:     minimumRealWeeklyStatRows,
 		MinimumSeasonStats:     minimumRealSeasonStatRows,
 		MinimumFantasyProsRows: minimumRealFantasyProsRows,
+		MinimumProjectionRows:  minimumRealProjectionRows,
 		Now:                    time.Now,
 		Output:                 output,
 	}
@@ -76,8 +78,10 @@ func (runner *Runner) Load(ctx context.Context, dataset string, refresh bool) er
 			return fmt.Errorf("FantasyPros refreshes require a separately approved command for each dataset")
 		}
 		return runner.loadFantasyPros(ctx, db)
+	case "projections":
+		return runner.loadProjections(ctx, db)
 	default:
-		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, and fantasypros", dataset)
+		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, fantasypros, and projections", dataset)
 	}
 }
 
@@ -102,7 +106,10 @@ func (runner *Runner) buildAt(ctx context.Context, dbPath string) error {
 	if err := runner.loadStats(ctx, db, false); err != nil {
 		return err
 	}
-	return runner.loadFantasyPros(ctx, db)
+	if err := runner.loadFantasyPros(ctx, db); err != nil {
+		return err
+	}
+	return runner.loadProjections(ctx, db)
 }
 
 // RefreshFantasyPros performs exactly one authenticated provider request after
@@ -121,18 +128,29 @@ func (runner *Runner) RefreshFantasyPros(ctx context.Context, name fantasypros.D
 		var dataset fantasypros.ECRDataset
 		dataset, body, err = runner.FantasyProsClient.FetchECR(ctx)
 		rowCount = len(dataset.Rankings)
+	case fantasypros.DatasetProjections:
+		var dataset fantasypros.ProjectionDataset
+		dataset, body, err = runner.FantasyProsClient.FetchProjections(ctx)
+		rowCount = len(dataset.Projections)
 	default:
-		return fmt.Errorf("unknown FantasyPros dataset %q; supported datasets are adp and ecr", name)
+		return fmt.Errorf("unknown FantasyPros dataset %q; supported datasets are adp, ecr, and projections", name)
 	}
 	if err != nil {
 		return err
 	}
-	if rowCount < runner.MinimumFantasyProsRows {
+	minimumRows := runner.MinimumFantasyProsRows
+	rowLabel := "rankings"
+	if name == fantasypros.DatasetProjections {
+		minimumRows = runner.MinimumProjectionRows
+		rowLabel = "projections"
+	}
+	if rowCount < minimumRows {
 		return fmt.Errorf(
-			"FantasyPros %s response contains %d rankings; refusing to cache below the safety threshold of %d",
+			"FantasyPros %s response contains %d %s; refusing to cache below the safety threshold of %d",
 			name,
 			rowCount,
-			runner.MinimumFantasyProsRows,
+			rowLabel,
+			minimumRows,
 		)
 	}
 	fetchedAt := runner.Now().UTC()
@@ -141,11 +159,64 @@ func (runner *Runner) RefreshFantasyPros(ctx context.Context, name fantasypros.D
 	}
 	fmt.Fprintf(
 		runner.Output,
-		"fantasypros: refreshed dataset=%s fetched_at=%s rankings=%d\n",
+		"fantasypros: refreshed dataset=%s fetched_at=%s rows=%d\n",
 		name,
 		fetchedAt.Format(time.RFC3339),
 		rowCount,
 	)
+	return nil
+}
+
+func (runner *Runner) loadProjections(ctx context.Context, db *sql.DB) error {
+	body, fetchedAt, err := readFantasyProsCache(
+		runner.CacheDir,
+		string(fantasypros.DatasetProjections),
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"read cached FantasyPros projections: %w; run the separately approved projections refresh first",
+			err,
+		)
+	}
+	dataset, err := fantasypros.ParseProjections(body, fetchedAt)
+	if err != nil {
+		return fmt.Errorf("parse cached FantasyPros projections: %w", err)
+	}
+	if len(dataset.Projections) < runner.MinimumProjectionRows {
+		return fmt.Errorf(
+			"FantasyPros response contains %d projections; refusing to load below the safety threshold of %d",
+			len(dataset.Projections),
+			runner.MinimumProjectionRows,
+		)
+	}
+	summary, err := loadProjectionsWithThreshold(
+		ctx,
+		db,
+		dataset,
+		runner.MinimumProjectionRows,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(
+		runner.Output,
+		"projections: source=fantasypros source_rows=%d matched=%d unmatched=%d inserted=%d updated_at=%s\n",
+		summary.SourceRows,
+		summary.MatchedRows,
+		summary.UnmatchedRows,
+		summary.InsertedRows,
+		summary.UpdatedAt,
+	)
+	for _, player := range summary.Unmatched {
+		fmt.Fprintf(
+			runner.Output,
+			"projections: unmatched fantasypros_id=%s player=%q position=%s team=%s\n",
+			player.FantasyProsID,
+			player.Name,
+			player.Position,
+			player.Team,
+		)
+	}
 	return nil
 }
 

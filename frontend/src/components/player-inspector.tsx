@@ -56,6 +56,31 @@ interface PlayerInspectorProps {
   playerID: number | null
 }
 
+function projectionMetrics(detail: PlayerDetail): Array<{ label: string; value: number | null }> {
+  const projections = detail.projections
+  switch (detail.player.position) {
+    case "QB":
+      return [
+        { label: "Passing yards", value: projections?.passing_yards ?? null },
+        { label: "Passing TDs", value: projections?.passing_touchdowns ?? null },
+        { label: "Rushing yards", value: projections?.rushing_yards ?? null },
+        { label: "Rushing TDs", value: projections?.rushing_touchdowns ?? null },
+      ]
+    case "RB":
+      return [
+        { label: "Rushing yards", value: projections?.rushing_yards ?? null },
+        { label: "Rushing TDs", value: projections?.rushing_touchdowns ?? null },
+        { label: "Receiving yards", value: projections?.receiving_yards ?? null },
+        { label: "Receiving TDs", value: projections?.receiving_touchdowns ?? null },
+      ]
+    default:
+      return [
+        { label: "Receiving yards", value: projections?.receiving_yards ?? null },
+        { label: "Receiving TDs", value: projections?.receiving_touchdowns ?? null },
+      ]
+  }
+}
+
 /** PlayerInspector loads one selected player's local detail and decision signals. */
 export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
   const detail = useQuery({
@@ -72,7 +97,7 @@ export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
         <div>
           <h2 className="font-semibold">Player Inspector</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Select an available player to compare weekly consistency, usage, ADP, and odds.
+            Select an available player to compare weekly consistency, usage, ADP, and projections.
           </p>
         </div>
       </aside>
@@ -155,13 +180,23 @@ export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
 
       <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="weekly-summary-heading">
         <h3 className="text-sm font-semibold" id="weekly-summary-heading">
-          2025 Half-PPR Weekly Range
+          2025 Performance
         </h3>
+        <p className="mt-1 text-xs text-muted-foreground">Half-PPR results and weekly range.</p>
         <dl className="mt-3 grid grid-cols-4 gap-2">
           <Metric label="Average" value={formatDecimal(detail.data.weekly_summary.average)} />
           <Metric label="High" value={formatDecimal(detail.data.weekly_summary.high)} />
           <Metric label="Median" value={formatDecimal(detail.data.weekly_summary.median)} />
           <Metric label="Low" value={formatDecimal(detail.data.weekly_summary.low)} />
+        </dl>
+        <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Metric label="Games played" value={formatWhole(detail.data.season?.games_played)} />
+          <Metric label="Receptions" value={formatWhole(detail.data.season?.receptions)} />
+          <Metric label="Targets/game" value={formatDecimal(detail.data.season?.targets_per_game)} />
+          <Metric
+            label="Rush attempts/game"
+            value={formatDecimal(detail.data.season?.rushing_attempts_per_game)}
+          />
         </dl>
       </section>
 
@@ -183,20 +218,17 @@ export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
         </div>
       )}
 
-      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="player-context-heading">
-        <h3 className="text-sm font-semibold" id="player-context-heading">
-          Season and Market Context
+      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="projection-heading">
+        <h3 className="text-sm font-semibold" id="projection-heading">
+          2026 FantasyPros Projections
         </h3>
-        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Metric label="Games played" value={formatWhole(detail.data.season?.games_played)} />
-          <Metric label="Receptions" value={formatWhole(detail.data.season?.receptions)} />
-          <Metric label="Targets/game" value={formatDecimal(detail.data.season?.targets_per_game)} />
-          <Metric
-            label="Rush attempts/game"
-            value={formatDecimal(detail.data.season?.rushing_attempts_per_game)}
-          />
-          <Metric label="TD O/U" value={formatDecimal(detail.data.odds.touchdowns?.line)} />
-          <Metric label="Team wins O/U" value={formatDecimal(detail.data.odds.team_wins?.line)} />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Preseason forecasts, kept separate from historical results and sportsbook odds.
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {projectionMetrics(detail.data).map((metric) => (
+            <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
+          ))}
         </dl>
       </section>
     </aside>
