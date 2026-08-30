@@ -119,3 +119,24 @@ type Player struct {
 
 // PlayersResponse is keyed by Sleeper player ID.
 type PlayersResponse map[string]Player
+
+// DraftPick is the subset of a Sleeper draft-pick object needed for durable
+// ordering, player identity mapping, and a useful fallback name when unknown.
+type DraftPick struct {
+	Round           int               `json:"round"`
+	PickNumber      int               `json:"pick_no"`
+	DraftSlot       int               `json:"draft_slot"`
+	RosterID        StringValue       `json:"roster_id"`
+	PickedBy        StringValue       `json:"picked_by"`
+	SleeperPlayerID StringValue       `json:"player_id"`
+	Metadata        DraftPickMetadata `json:"metadata"`
+}
+
+// DraftPickMetadata carries Sleeper's display identity for picks that do not
+// yet map to a player in the local database.
+type DraftPickMetadata struct {
+	FirstName StringValue `json:"first_name"`
+	LastName  StringValue `json:"last_name"`
+	Position  StringValue `json:"position"`
+	Team      StringValue `json:"team"`
+}

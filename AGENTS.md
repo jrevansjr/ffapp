@@ -27,6 +27,10 @@ Prefer obvious code over clever code. Prefer a little duplication over an abstra
 - Before every request to a keyed, rate-limited, or daily-limited provider, ask
   the user for a fresh explicit yes/no approval. Prior approval never carries
   forward to another request. Cache reads and local test servers do not count.
+- Saving Admin settings with draft polling enabled is ongoing authorization for
+  the backend to repeat Sleeper's public `/draft/{draft_id}/picks` request at the
+  saved interval. Do not interrupt live polling for per-request approval. This
+  exception does not cover `/players/nfl` or any keyed/rate-limited provider.
 - If a user instruction conflicts with this file, follow the instruction, then update this file if the new behavior should become a lasting rule.
 
 **Before declaring any task or milestone done, run and pass:**

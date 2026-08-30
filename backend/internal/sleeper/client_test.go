@@ -67,3 +67,74 @@ func TestFetchPlayersRejectsProviderErrorsAndEmptyData(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchDraftPicksParsesLivePickFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/draft/mock-123/picks" {
+			t.Fatalf("request path = %q, want /draft/mock-123/picks", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[
+			{
+				"round": 2,
+				"pick_no": 14,
+				"draft_slot": 3,
+				"roster_id": 7,
+				"picked_by": "owner-1",
+				"player_id": "known-player",
+				"metadata": {
+					"first_name": "Test",
+					"last_name": "Receiver",
+					"position": "WR",
+					"team": "BUF"
+				}
+			}
+		]`))
+	}))
+	defer server.Close()
+	client := NewClient()
+	client.BaseURL = server.URL
+	client.HTTPClient = server.Client()
+
+	picks, err := client.FetchDraftPicks(context.Background(), " mock-123 ")
+	if err != nil {
+		t.Fatalf("FetchDraftPicks() error = %v", err)
+	}
+	if len(picks) != 1 {
+		t.Fatalf("pick count = %d, want 1", len(picks))
+	}
+	pick := picks[0]
+	if pick.PickNumber != 14 || pick.Round != 2 || pick.DraftSlot != 3 ||
+		pick.RosterID.Value != "7" || pick.PickedBy.Value != "owner-1" ||
+		pick.SleeperPlayerID.Value != "known-player" || pick.Metadata.Team.Value != "BUF" {
+		t.Fatalf("parsed pick = %#v", pick)
+	}
+}
+
+func TestFetchDraftPicksRejectsInvalidResponses(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{name: "provider error", status: http.StatusNotFound, body: `null`},
+		{name: "malformed JSON", status: http.StatusOK, body: `[`},
+		{name: "null response", status: http.StatusOK, body: `null`},
+		{name: "missing player", status: http.StatusOK, body: `[{"pick_no":1}]`},
+		{name: "duplicate pick", status: http.StatusOK, body: `[{"pick_no":1,"player_id":"a"},{"pick_no":1,"player_id":"b"}]`},
+		{name: "duplicate player", status: http.StatusOK, body: `[{"pick_no":1,"player_id":"a"},{"pick_no":2,"player_id":"a"}]`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.status)
+				_, _ = w.Write([]byte(test.body))
+			}))
+			defer server.Close()
+			client := NewClient()
+			client.BaseURL = server.URL
+			client.HTTPClient = server.Client()
+			if _, err := client.FetchDraftPicks(context.Background(), "draft"); err == nil {
+				t.Fatal("FetchDraftPicks() error = nil, want failure")
+			}
+		})
+	}
+}

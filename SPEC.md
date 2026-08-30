@@ -127,6 +127,8 @@ DELETE /api/draft/manual-picks/{id}
 {
   "draft_id": "1234567890",
   "mode": "live",
+  "status": "stale",
+  "polling_enabled": true,
   "stale": true,
   "last_synced_at": "2026-08-15T18:30:00Z",
   "message": "Sleeper is temporarily unavailable; showing last known draft state.",
@@ -153,8 +155,8 @@ Normalized; season/source-varying data in its own tables. SQLite types and conve
 - **`player_tiers`** — key `(player_id, season, source)`: tier, updated_at. M6.3 stores the overall tier supplied with FantasyPros Draft ECR; no tier algorithm.
 - **`player_projections`** — key `(player_id, season, source)`: nullable passing/rushing/receiving yards and touchdowns plus updated_at. M6.4 stores FantasyPros preseason forecasts separately from historical stats and sportsbook odds.
 - **`odds`** — one generic table: `id, season, source, market, player_id (nullable), nfl_team_id (nullable), line, over_price (nullable), under_price (nullable), captured_at`. Exactly one of player/team identifies the subject. Markets like `total_touchdowns`, `regular_season_wins`. No consensus math, no ingestion yet.
-- **`drafts`** — `id, sleeper_draft_id, sleeper_league_id, mode (live|manual), status, created_at, updated_at`. Live is the main path.
-- **`draft_picks`** — `id, draft_id, pick_number, round (nullable), draft_slot (nullable), roster_id (nullable), picked_by (nullable), sleeper_player_id, player_id (nullable), source (sleeper|manual), created_at`. Preserve `sleeper_player_id` even when unmapped; idempotent upserts; no duplicate active picks for one player in one draft.
+- **`drafts`** — `id, sleeper_draft_id, sleeper_league_id, mode (live|manual), status, last_synced_at (nullable), last_sync_error (nullable), created_at, updated_at`. Live is the main path; sync health stays with its draft so changing the active setting preserves history.
+- **`draft_picks`** — `id, draft_id, pick_number, round (nullable), draft_slot (nullable), roster_id (nullable), picked_by (nullable), sleeper_player_id, player_id (nullable), source (sleeper|manual), player_first_name/player_last_name/player_position/player_team (nullable), created_at`. Preserve `sleeper_player_id` and pick metadata even when unmapped; idempotent upserts; no duplicate active picks for one player in one draft.
 - **`app_settings`** — singleton row `id = 1`: sleeper_username, sleeper_league_id, sleeper_draft_id, polling_enabled (default 1), polling_interval_ms (default 2000), players_synced_at (nullable), updated_at.
 
 Deferred until actually needed (do not create now): `fantasy_rosters`, `fantasy_roster_players`, replay mode and its `replay` enum values. This is a draft-day tool for this season; roster snapshots and replay serve needs that may never materialize.
@@ -214,10 +216,12 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M8.1 — Real season odds.** After live sync and manual fallback, choose/approve sources for player futures and populate `odds`. Team win totals remain hidden unless explicitly requested again. *Done when:* markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
 
+**M8.2 — Potential morality index.** If pursued, import a manually supplied, source-dated dataset based on USA Today's NFL arrest records and display a user-defined 0–5 score. Agree on the scoring rubric and identity matches before adding schema or UI; preserve the underlying source facts separately from the subjective score, and do not present an arrest record as an objective measure of morality.
+
 **M9 — Polish.** Layout, error/loading states, table density, chart legibility, stale-status UX, README, naming, dead code, unnecessary abstractions. No new major features.
 
 ---
 
 ## Deferred, on purpose
 
-Single-binary build (Go serving `frontend/dist` via `embed.FS` — the Vite proxy setup makes this a drop-in later), replay mode, fantasy roster caching, drafted-by-roster display. Revisit after the season, if ever.
+Single-binary build (Go serving `frontend/dist` via `embed.FS` — the Vite proxy setup makes this a drop-in later), replay mode, fantasy roster caching, drafted-by-roster display, and the optional M8.2 morality-index dataset. Revisit after the season, if ever.

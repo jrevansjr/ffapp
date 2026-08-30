@@ -18,6 +18,37 @@ export interface SettingsUpdate {
   polling_interval_ms: number
 }
 
+/** DraftPick is one persisted official or future manual selection. */
+export interface DraftPick {
+  id: number
+  pick_number: number
+  round: number | null
+  draft_slot: number | null
+  roster_id: string | null
+  picked_by: string | null
+  sleeper_player_id: string
+  player_id: number | null
+  source: "sleeper" | "manual"
+  first_name: string | null
+  last_name: string | null
+  position: string | null
+  team: string | null
+}
+
+/** DraftState is the latest local snapshot produced by the backend poller. */
+export interface DraftState {
+  draft_id: string
+  mode: "not_configured" | "live" | "manual"
+  status: "not_configured" | "disabled" | "syncing" | "current" | "stale"
+  polling_enabled: boolean
+  stale: boolean
+  last_synced_at: string | null
+  message: string
+  picks: DraftPick[]
+  taken_player_ids: number[]
+  unknown_sleeper_player_ids: string[]
+}
+
 /** NFLTeam is the local team identity included with player summaries. */
 export interface NFLTeam {
   id: number

@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. M6.5 verifies a persistent SQLite database built from real NFL teams, active Sleeper QB/RB/WR/TE players, 2025 nflverse weekly statistics, and 2026 FantasyPros draft rankings plus volume projections.
+A personal, local-first fantasy football draft-day dashboard. M7 adds live Sleeper draft-pick synchronization to the persistent real-data foundation built through M6.5.
 
 ## Prerequisites
 
@@ -99,7 +99,7 @@ cd backend
 go run ./cmd/server
 ```
 
-The API listens on `http://localhost:8080` by default. `BACKEND_PORT` can override the port. The server opens the existing SQLite file and applies pending embedded migrations without fetching provider data.
+The API listens on `http://localhost:8080` by default. `BACKEND_PORT` can override the port. The server opens the existing SQLite file and applies pending embedded migrations without importing reference data. If Admin has both a draft ID and polling enabled, the one backend poller immediately reads Sleeper's public picks endpoint and continues at the saved interval.
 
 In another terminal, start the frontend:
 
@@ -110,17 +110,32 @@ npm run dev
 
 Open `http://localhost:5173`. Vite proxies relative `/api` requests to `http://localhost:8080`; the Go server does not enable CORS. The header health indicator proves the frontend is communicating with the backend through that proxy.
 
-## Current M6.5 behavior
+### Use a second computer on the same network
+
+The dashboard can be open in multiple browsers at once. Keep the backend command unchanged, but expose Vite on the laptop's local network:
+
+```bash
+cd frontend
+npm run dev -- --host 0.0.0.0
+```
+
+On the second computer, open `http://<laptop-LAN-IP>:5173`. Both browsers read the same SQLite draft state through the same backend poller; filters and selected-player state remain local to each browser. Port 5173 must be allowed through the laptop firewall. This development server has no authentication, so expose it only on a trusted local network and do not port-forward it to the internet.
+
+## Current M7 behavior
 
 Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
 
 After the three explicit refreshes and a cache-only load/rebuild, Overview shows Aggregate ADP, ECR fields, and all six projection columns. Draft Day groups all 2025 performance values above the charts and shows a separate position-aware 2026 FantasyPros projection card below them. Missing or unmatched values remain `—` rather than zero.
 
-Odds and live picks are deliberately not populated yet. Projections are not presented as odds, and team-win totals are hidden. The real-data audit is complete; live Sleeper synchronization begins in M7, manual fallback is M8, and real season odds are deferred until afterward.
+Live mode stores Sleeper picks per draft and derives taken/available state without modifying player rows. Draft Day refreshes the local draft snapshot once per second, so newly selected players leave the available table without a page reload; Overview uses that same snapshot for taken styling. Unknown Sleeper player IDs are retained with pick metadata and do not stop synchronization. A failed Sleeper request preserves the last successful picks and marks the snapshot stale.
+
+The backend starts exactly one poller only when a draft ID is configured and polling is enabled. It syncs immediately, then uses the Admin interval (default 2000 ms). Saving a different draft ID or interval cleanly replaces that loop; disabling polling stops it. Enabling the Admin toggle authorizes these repeated public pick requests until it is turned off. Browser refreshes only read SQLite through `GET /api/draft/state` and never trigger Sleeper calls.
+
+Manual mark-drafted/undo remains M8. Projections are not presented as odds, team-win totals remain hidden, and real season odds are deferred until after manual fallback.
 
 The clean M6.5 rebuild was verified with 32 NFL teams, 3,045 active fantasy-position players, 6,033 weekly rows across all 18 weeks, 604 derived season rows, 314 Aggregate ADP rows, 750 ECR/tier rows, and 510 projection rows. These counts describe the current provider snapshots and can change after a deliberate refresh. SQLite integrity and foreign-key checks passed, no synthetic players remained, and `odds`, `drafts`, and `draft_picks` were empty as required.
 
-Admin continues to store Sleeper username, league ID, draft ID, polling toggle, and polling interval in SQLite. Player-pool imports are terminal commands rather than Admin actions. Sleeper's public API requires no credential, so no token/API-key/password field exists.
+Admin stores Sleeper username, league ID, draft ID, polling toggle, and polling interval in SQLite. Player-pool imports are terminal commands rather than Admin actions. Sleeper's public API requires no credential, so no token/API-key/password field exists.
 
 Available routes:
 
@@ -133,6 +148,7 @@ Available routes:
 - `GET /api/players/{id}`
 - `GET /api/settings`
 - `PUT /api/settings`
+- `GET /api/draft/state`
 
 Inspect the local API directly:
 
@@ -141,6 +157,7 @@ curl http://localhost:8080/api/health
 curl http://localhost:8080/api/nfl-teams
 curl 'http://localhost:8080/api/players?position=QB'
 curl http://localhost:8080/api/settings
+curl http://localhost:8080/api/draft/state
 ```
 
 Inspect the database with the SQLite CLI:
@@ -163,6 +180,9 @@ sqlite3 -header -box data/draft.db \
 
 sqlite3 -header -box data/draft.db \
   "SELECT p.first_name || ' ' || p.last_name AS player, p.position, ROUND(x.passing_yards, 1) AS pass_yds, ROUND(x.rushing_yards, 1) AS rush_yds, ROUND(x.receiving_yards, 1) AS rec_yds FROM player_projections x JOIN players p ON p.id = x.player_id WHERE x.season = 2026 AND x.source = 'fantasypros' ORDER BY p.position, p.last_name LIMIT 20;"
+
+sqlite3 -header -box data/draft.db \
+  "SELECT d.sleeper_draft_id, dp.pick_number, dp.sleeper_player_id, dp.source, dp.player_first_name, dp.player_last_name FROM draft_picks dp JOIN drafts d ON d.id = dp.draft_id ORDER BY d.id, dp.pick_number;"
 ```
 
 ## Checks

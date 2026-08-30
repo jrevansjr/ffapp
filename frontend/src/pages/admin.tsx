@@ -46,6 +46,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
     onSuccess: (savedSettings) => {
       queryClient.setQueryData(settingsQueryKey, savedSettings)
       void queryClient.invalidateQueries({ queryKey: ["players"] })
+      void queryClient.invalidateQueries({ queryKey: ["draft-state"] })
       setForm(formStateFromSettings(savedSettings))
       setValidationError(null)
     },
@@ -156,7 +157,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
           <span>
             <span className="block font-medium">Enable draft polling</span>
             <span className="mt-0.5 block text-muted-foreground">
-              Polling starts in a later milestone after live draft sync is implemented.
+              While enabled with a draft ID, the backend repeatedly reads Sleeper&apos;s public
+              picks endpoint at this interval. Turning it off stops those requests.
             </span>
           </span>
         </label>

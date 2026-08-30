@@ -1,4 +1,5 @@
 import type {
+  DraftState,
   NFLTeam,
   PlayerDetail,
   PlayerListItem,
@@ -58,6 +59,16 @@ export async function updateSettings(settings: SettingsUpdate): Promise<Settings
   }
 
   return response.json() as Promise<Settings>
+}
+
+/** Loads the latest persisted draft snapshot without contacting Sleeper. */
+export async function getDraftState(): Promise<DraftState> {
+  const response = await fetch("/api/draft/state")
+  if (!response.ok) {
+    throw await responseError(response, "Could not load draft state")
+  }
+
+  return response.json() as Promise<DraftState>
 }
 
 /** Loads team labels used by the local Overview filter. */

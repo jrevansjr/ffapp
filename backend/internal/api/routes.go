@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jrevansjr/ffapp/backend/internal/database"
 )
 
 type healthResponse struct {
@@ -18,13 +19,14 @@ type healthResponse struct {
 // handler gives every route access to the one database handle shared by the
 // server. Subject-specific behavior stays in the corresponding API file.
 type handler struct {
-	db *sql.DB
+	db                *sql.DB
+	onSettingsUpdated func(database.Settings)
 }
 
 // NewRouter connects the application's HTTP routes to the shared SQLite
 // handle. Handlers only read or update local state; they never call Sleeper.
-func NewRouter(db *sql.DB) http.Handler {
-	h := handler{db: db}
+func NewRouter(db *sql.DB, onSettingsUpdated func(database.Settings)) http.Handler {
+	h := handler{db: db, onSettingsUpdated: onSettingsUpdated}
 	router := chi.NewRouter()
 	router.Get("/api/health", h.handleHealth)
 	router.Get("/api/nfl-teams", h.handleNFLTeams)
@@ -32,6 +34,7 @@ func NewRouter(db *sql.DB) http.Handler {
 	router.Get("/api/players/{id}", h.handlePlayer)
 	router.Get("/api/settings", h.handleGetSettings)
 	router.Put("/api/settings", h.handleUpdateSettings)
+	router.Get("/api/draft/state", h.handleGetDraftState)
 	return router
 }
 

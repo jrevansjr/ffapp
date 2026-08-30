@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 
 import PlayerOverviewTable from "@/components/player-overview-table"
-import { getNFLTeams, getPlayers } from "@/lib/api"
+import { getDraftState, getNFLTeams, getPlayers } from "@/lib/api"
 import type { PlayerFilters } from "@/lib/types"
 
 const positions = ["QB", "RB", "WR", "TE"]
@@ -28,14 +28,28 @@ export default function OverviewPage() {
     retry: false,
     staleTime: Infinity,
   })
+  const draftState = useQuery({
+    queryKey: ["draft-state"],
+    queryFn: getDraftState,
+    retry: false,
+    refetchInterval: 1000,
+  })
+
+  const takenPlayerIDs = draftState.data?.taken_player_ids
+  const displayedPlayers = useMemo(() => {
+    if (!players.data) return []
+    if (!takenPlayerIDs) return players.data
+    const taken = new Set(takenPlayerIDs)
+    return players.data.map((player) => ({ ...player, is_taken: taken.has(player.id) }))
+  }, [players.data, takenPlayerIDs])
 
   const filteredPlayers = useMemo(() => {
-    return (players.data ?? []).filter((player) => {
+    return displayedPlayers.filter((player) => {
       const matchesPosition = filters.position === "" || player.position === filters.position
       const matchesTeam = filters.team === "" || player.nfl_team?.abbreviation === filters.team
       return matchesPosition && matchesTeam
     })
-  }, [filters, players.data])
+  }, [displayedPlayers, filters])
 
   return (
     <section aria-labelledby="overview-heading">

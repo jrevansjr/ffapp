@@ -19,7 +19,7 @@ func TestHealth(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	recorder := httptest.NewRecorder()
 
-	NewRouter(nil).ServeHTTP(recorder, request)
+	NewRouter(nil, nil).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
@@ -196,6 +196,73 @@ func TestSettingsEndpointsValidateAndPersist(t *testing.T) {
 	}
 }
 
+func TestSettingsUpdateNotifiesDraftPoller(t *testing.T) {
+	db, _ := newTestRouter(t)
+	var notified database.Settings
+	router := NewRouter(db, func(settings database.Settings) { notified = settings })
+	body := `{
+		"sleeper_username":"learner",
+		"sleeper_league_id":"league-1",
+		"sleeper_draft_id":"draft-1",
+		"polling_enabled":true,
+		"polling_interval_ms":2500
+	}`
+	recorder := serveRequest(router, http.MethodPut, "/api/settings", body)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("PUT /api/settings status = %d, want 200", recorder.Code)
+	}
+	if notified.SleeperDraftID != "draft-1" || notified.PollingInterval != 2500 {
+		t.Fatalf("poller notification = %#v", notified)
+	}
+}
+
+func TestDraftStateEndpointUsesPersistedSnapshot(t *testing.T) {
+	db, router := newTestRouter(t)
+
+	unconfigured := serveRequest(router, http.MethodGet, "/api/draft/state", "")
+	if unconfigured.Code != http.StatusOK {
+		t.Fatalf("unconfigured draft-state status = %d, want 200", unconfigured.Code)
+	}
+	var empty draftStateResponse
+	decodeResponse(t, unconfigured, &empty)
+	if empty.Status != "not_configured" || empty.Stale || len(empty.Picks) != 0 {
+		t.Fatalf("unconfigured draft state = %#v", empty)
+	}
+
+	if _, err := database.UpdateSettings(context.Background(), db, database.EditableSettings{
+		SleeperDraftID: "api-draft", PollingEnabled: true, PollingInterval: 2000,
+	}); err != nil {
+		t.Fatalf("activate API draft: %v", err)
+	}
+	if _, err := database.SyncDraftPicks(context.Background(), db, "api-draft", "", []database.DraftPickInput{
+		{PickNumber: 1, SleeperPlayerID: "fixture-qb", FirstName: "Alex", LastName: "Alpha"},
+		{PickNumber: 2, SleeperPlayerID: "unknown", FirstName: "Unknown", LastName: "Rookie"},
+	}); err != nil {
+		t.Fatalf("sync API draft fixture: %v", err)
+	}
+
+	recorder := serveRequest(router, http.MethodGet, "/api/draft/state", "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET /api/draft/state status = %d, want 200", recorder.Code)
+	}
+	var response draftStateResponse
+	decodeResponse(t, recorder, &response)
+	if response.Status != "current" || response.Stale || response.LastSyncedAt == nil ||
+		len(response.Picks) != 2 || len(response.TakenPlayerIDs) != 1 ||
+		response.TakenPlayerIDs[0] != 1 || len(response.UnknownSleeperPlayerIDs) != 1 {
+		t.Fatalf("draft state response = %#v", response)
+	}
+	if err := database.RecordDraftSyncFailure(context.Background(), db, "api-draft", ""); err != nil {
+		t.Fatalf("record API draft failure: %v", err)
+	}
+	staleRecorder := serveRequest(router, http.MethodGet, "/api/draft/state", "")
+	var stale draftStateResponse
+	decodeResponse(t, staleRecorder, &stale)
+	if stale.Status != "stale" || !stale.Stale || len(stale.Picks) != 2 || stale.Message == "" {
+		t.Fatalf("stale draft state response = %#v", stale)
+	}
+}
+
 func TestPlayerEndpointValidationAndNotFound(t *testing.T) {
 	_, router := newTestRouter(t)
 	for _, path := range []string{
@@ -266,7 +333,7 @@ func newTestRouter(t *testing.T) (*sql.DB, http.Handler) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	loadAPITestFixture(t, db)
-	return db, NewRouter(db)
+	return db, NewRouter(db, nil)
 }
 
 func loadAPITestFixture(t *testing.T, db *sql.DB) {

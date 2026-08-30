@@ -73,6 +73,9 @@ func (h handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("settings updated")
+	if h.onSettingsUpdated != nil {
+		h.onSettingsUpdated(settings)
+	}
 	writeJSON(w, http.StatusOK, newSettingsResponse(settings))
 }
 

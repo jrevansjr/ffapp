@@ -4,7 +4,8 @@ import { Link } from "react-router"
 
 import DraftPlayerTable from "@/components/draft-player-table"
 import PlayerInspector from "@/components/player-inspector"
-import { getNFLTeams, getPlayers, getSettings } from "@/lib/api"
+import { getDraftState, getNFLTeams, getPlayers } from "@/lib/api"
+import type { DraftPick } from "@/lib/types"
 
 const positions = ["QB", "RB", "WR", "TE"]
 const controlClassName =
@@ -19,6 +20,16 @@ interface DraftFilters {
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message !== "" ? error.message : fallback
+}
+
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString()
+}
+
+function unknownPickLabel(pick: DraftPick): string {
+  const name = [pick.first_name, pick.last_name].filter(Boolean).join(" ")
+  return name === "" ? pick.sleeper_player_id : `${name} (${pick.sleeper_player_id})`
 }
 
 /** DraftPage coordinates local availability, filters, selection, and inspector data. */
@@ -42,27 +53,34 @@ export default function DraftPage() {
     retry: false,
     staleTime: Infinity,
   })
-  const settings = useQuery({
-    queryKey: ["settings"],
-    queryFn: getSettings,
+  const draftState = useQuery({
+    queryKey: ["draft-state"],
+    queryFn: getDraftState,
     retry: false,
-    staleTime: Infinity,
+    refetchInterval: 1000,
   })
 
+  const takenPlayerIDs = draftState.data?.taken_player_ids
+  const displayedPlayers = useMemo(() => {
+    if (!players.data) return []
+    if (!takenPlayerIDs) return players.data
+    const taken = new Set(takenPlayerIDs)
+    return players.data.map((player) => ({ ...player, is_taken: taken.has(player.id) }))
+  }, [players.data, takenPlayerIDs])
   const availablePlayers = useMemo(
-    () => (players.data ?? []).filter((player) => !player.is_taken),
-    [players.data],
+    () => displayedPlayers.filter((player) => !player.is_taken),
+    [displayedPlayers],
   )
   const tiers = useMemo(
     () =>
       Array.from(
         new Set(
-          (players.data ?? []).flatMap((player) =>
+          displayedPlayers.flatMap((player) =>
             player.draft.tier === null ? [] : [player.draft.tier],
           ),
         ),
       ).sort((left, right) => left - right),
-    [players.data],
+    [displayedPlayers],
   )
   const filteredPlayers = useMemo(() => {
     const name = filters.name.trim().toLocaleLowerCase()
@@ -77,8 +95,8 @@ export default function DraftPage() {
     })
   }, [availablePlayers, filters])
 
-  const takenCount = (players.data?.length ?? 0) - availablePlayers.length
-  const draftID = settings.data?.sleeper_draft_id ?? ""
+  const takenCount = displayedPlayers.length - availablePlayers.length
+  const unknownPicks = draftState.data?.picks.filter((pick) => pick.player_id === null) ?? []
 
   return (
     <section aria-labelledby="draft-heading">
@@ -99,31 +117,31 @@ export default function DraftPage() {
       </div>
 
       <div className="mt-5 rounded-lg border border-border bg-card px-4 py-3 text-sm">
-        {settings.isPending && (
+        {draftState.isPending && (
           <p className="text-muted-foreground" role="status">
             Loading draft configuration…
           </p>
         )}
-        {settings.isError && (
+        {draftState.isError && !draftState.data && (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-red-700" role="alert">
-              {errorMessage(settings.error, "Could not load draft configuration.")}
+              {errorMessage(draftState.error, "Could not load draft state.")}
             </p>
             <button
               className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-muted"
-              onClick={() => void settings.refetch()}
+              onClick={() => void draftState.refetch()}
               type="button"
             >
               Try Again
             </button>
           </div>
         )}
-        {settings.data && draftID === "" && (
+        {draftState.data?.status === "not_configured" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-medium">No active Sleeper draft configured.</p>
               <p className="mt-1 text-muted-foreground">
-                All imported players are available. Live Sleeper synchronization arrives in M7.
+                All imported players remain available until a draft ID is saved in Admin.
               </p>
             </div>
             <Link
@@ -134,13 +152,63 @@ export default function DraftPage() {
             </Link>
           </div>
         )}
-        {settings.data && draftID !== "" && (
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold">Local data</span>
+        {draftState.data && draftState.data.status !== "not_configured" && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  draftState.data.stale
+                    ? "bg-amber-100 text-amber-900"
+                    : draftState.data.status === "current"
+                      ? "bg-emerald-100 text-emerald-900"
+                      : "bg-muted"
+                }`}
+              >
+                {draftState.data.status === "current"
+                  ? "Live"
+                  : draftState.data.status === "stale"
+                    ? "Stale"
+                    : draftState.data.status === "syncing"
+                      ? "Syncing"
+                      : "Polling off"}
+              </span>
+              <div>
+                <p>
+                  Draft <code>{draftState.data.draft_id}</code>
+                </p>
+                {draftState.data.message && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {draftState.data.message}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p>{draftState.data.picks.length} synchronized picks</p>
+              <p>
+                {draftState.data.last_synced_at
+                  ? `Last sync ${formatTimestamp(draftState.data.last_synced_at)}`
+                  : "No successful sync yet"}
+              </p>
+            </div>
+          </div>
+        )}
+        {draftState.data && draftState.data.unknown_sleeper_player_ids.length > 0 && (
+          <div className="mt-2 text-xs text-amber-800">
             <p>
-              Draft <code>{draftID}</code> is configured. Live Sleeper synchronization is not active yet.
+              {draftState.data.unknown_sleeper_player_ids.length} pick
+              {draftState.data.unknown_sleeper_player_ids.length === 1 ? " has" : "s have"} an
+              unknown local player ID; synchronization is continuing.
+            </p>
+            <p className="mt-0.5 break-words">
+              Unknown mapping: {unknownPicks.map(unknownPickLabel).join(", ")}
             </p>
           </div>
+        )}
+        {draftState.isError && draftState.data && (
+          <p className="mt-2 text-xs text-red-700" role="alert">
+            Could not refresh local draft state; showing the last browser snapshot.
+          </p>
         )}
       </div>
 
