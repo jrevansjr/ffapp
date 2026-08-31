@@ -12,6 +12,7 @@ import (
 	"github.com/jrevansjr/ffapp/backend/internal/database"
 	"github.com/jrevansjr/ffapp/backend/internal/fantasypros"
 	"github.com/jrevansjr/ffapp/backend/internal/nflverse"
+	"github.com/jrevansjr/ffapp/backend/internal/odds"
 	"github.com/jrevansjr/ffapp/backend/internal/sleeper"
 )
 
@@ -28,6 +29,8 @@ type Runner struct {
 	MinimumSeasonStats     int
 	MinimumFantasyProsRows int
 	MinimumProjectionRows  int
+	MinimumOddsRows        int
+	OddsSnapshot           *odds.Snapshot
 	Now                    func() time.Time
 	Output                 io.Writer
 }
@@ -49,6 +52,7 @@ func NewRunner(dbPath string, output io.Writer) *Runner {
 		MinimumSeasonStats:     minimumRealSeasonStatRows,
 		MinimumFantasyProsRows: minimumRealFantasyProsRows,
 		MinimumProjectionRows:  minimumRealProjectionRows,
+		MinimumOddsRows:        minimumRealOddsRows,
 		Now:                    time.Now,
 		Output:                 output,
 	}
@@ -80,8 +84,10 @@ func (runner *Runner) Load(ctx context.Context, dataset string, refresh bool) er
 		return runner.loadFantasyPros(ctx, db)
 	case "projections":
 		return runner.loadProjections(ctx, db)
+	case "odds":
+		return runner.loadOdds(ctx, db)
 	default:
-		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, fantasypros, and projections", dataset)
+		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, fantasypros, projections, and odds", dataset)
 	}
 }
 
@@ -109,7 +115,52 @@ func (runner *Runner) buildAt(ctx context.Context, dbPath string) error {
 	if err := runner.loadFantasyPros(ctx, db); err != nil {
 		return err
 	}
-	return runner.loadProjections(ctx, db)
+	if err := runner.loadProjections(ctx, db); err != nil {
+		return err
+	}
+	return runner.loadOdds(ctx, db)
+}
+
+func (runner *Runner) loadOdds(ctx context.Context, db *sql.DB) error {
+	var snapshot odds.Snapshot
+	if runner.OddsSnapshot != nil {
+		snapshot = *runner.OddsSnapshot
+	} else {
+		var err error
+		snapshot, err = odds.LoadSnapshot()
+		if err != nil {
+			return err
+		}
+	}
+	summary, err := loadOddsWithThreshold(ctx, db, snapshot, runner.MinimumOddsRows)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(
+		runner.Output,
+		"odds: source=%s source_rows=%d consensus=%d no_consensus=%d matched=%d unmatched=%d position_mismatches=%d inserted=%d captured_at=%s\n",
+		snapshot.Source,
+		summary.SourceRows,
+		summary.ConsensusRows,
+		summary.SkippedNoConsensus,
+		summary.MatchedRows,
+		summary.UnmatchedRows,
+		summary.PositionMismatchRows,
+		summary.InsertedRows,
+		summary.CapturedAt,
+	)
+	for _, issue := range summary.Issues {
+		fmt.Fprintf(
+			runner.Output,
+			"odds: skipped reason=%s market=%s subject=%q team=%s position=%s\n",
+			issue.Reason,
+			issue.Market,
+			issue.Subject,
+			issue.Team,
+			issue.Position,
+		)
+	}
+	return nil
 }
 
 // RefreshFantasyPros performs exactly one authenticated provider request after

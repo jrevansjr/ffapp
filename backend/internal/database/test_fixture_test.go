@@ -49,12 +49,13 @@ func loadPlayerQueryFixture(t *testing.T, db *sql.DB) {
 			player_id, season, source, passing_yards, passing_touchdowns,
 			rushing_yards, rushing_touchdowns, updated_at
 		) VALUES (1, 2026, 'fantasypros', 4000.5, 30.2, 350.1, 4.5, '2026-08-01T00:00:00Z');
-		INSERT INTO odds (
-			season, source, market, player_id, line, captured_at
-		) VALUES (2026, 'fixture', 'total_touchdowns', 1, 1.5, '2026-08-01T00:00:00Z');
-		INSERT INTO odds (
-			season, source, market, nfl_team_id, line, captured_at
-		) VALUES (2026, 'fixture', 'regular_season_wins', 1, 8.5, '2026-08-01T00:00:00Z');
+		INSERT INTO odds (season, source, market, player_id, line, captured_at) VALUES
+			(2026, 'sportsbook_consensus', 'passing_yards', 1, 3999.5, '2026-08-31T01:23:28Z'),
+			(2026, 'sportsbook_consensus', 'passing_touchdowns', 1, 29.5, '2026-08-31T01:23:28Z'),
+			(2026, 'sportsbook_consensus', 'rushing_yards', 1, 349.5, '2026-08-31T01:23:28Z'),
+			(2026, 'sportsbook_consensus', 'rushing_touchdowns', 1, 4.5, '2026-08-31T01:23:28Z');
+		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)
+		VALUES (2026, 'sportsbook_consensus', 'regular_season_wins', 1, 8.5, '2026-08-31T01:23:28Z');
 
 		INSERT INTO drafts (
 			id, sleeper_draft_id, mode, status, created_at, updated_at

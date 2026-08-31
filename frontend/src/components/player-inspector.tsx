@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 
 import WeeklyTrendChart, { type WeeklySeries } from "@/components/weekly-trend-chart"
 import { getPlayer } from "@/lib/api"
-import type { PlayerDetail } from "@/lib/types"
+import type { OddsLine, PlayerDetail } from "@/lib/types"
 
 function formatDecimal(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : value.toFixed(1)
@@ -85,6 +85,48 @@ function projectionMetrics(detail: PlayerDetail): Array<{ label: string; value: 
   }
 }
 
+function oddsMetrics(detail: PlayerDetail): Array<{ label: string; value: number | null }> {
+  const odds = detail.odds
+  const teamWins = { label: "Team wins O/U", value: odds.team_wins?.line ?? null }
+  switch (detail.player.position) {
+    case "QB":
+      return [
+        { label: "Pass yards O/U", value: odds.passing_yards?.line ?? null },
+        { label: "Pass TDs O/U", value: odds.passing_touchdowns?.line ?? null },
+        { label: "Rush yards O/U", value: odds.rushing_yards?.line ?? null },
+        { label: "Rush TDs O/U", value: odds.rushing_touchdowns?.line ?? null },
+        teamWins,
+      ]
+    case "RB":
+      return [
+        { label: "Rush yards O/U", value: odds.rushing_yards?.line ?? null },
+        { label: "Rush TDs O/U", value: odds.rushing_touchdowns?.line ?? null },
+        { label: "Rec yards O/U", value: odds.receiving_yards?.line ?? null },
+        { label: "Rec TDs O/U", value: odds.receiving_touchdowns?.line ?? null },
+        teamWins,
+      ]
+    default:
+      return [
+        { label: "Rec yards O/U", value: odds.receiving_yards?.line ?? null },
+        { label: "Rec TDs O/U", value: odds.receiving_touchdowns?.line ?? null },
+        teamWins,
+      ]
+  }
+}
+
+function oddsProvenance(detail: PlayerDetail): OddsLine | null {
+  return (
+    Object.values(detail.odds).find((line): line is OddsLine => line !== null) ?? null
+  )
+}
+
+function formatCapturedAt(timestamp: string): string {
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime())
+    ? timestamp
+    : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+}
+
 /** PlayerInspector loads one selected player's local detail and exposes the manual draft fallback. */
 export default function PlayerInspector({
   canMarkDrafted,
@@ -141,6 +183,7 @@ export default function PlayerInspector({
 
   const player = detail.data.player
   const usage = usageChart(detail.data)
+  const oddsSource = oddsProvenance(detail.data)
 
   return (
     <aside className="space-y-4 xl:sticky xl:top-4" aria-labelledby="inspector-heading">
@@ -258,6 +301,21 @@ export default function PlayerInspector({
         </p>
         <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {projectionMetrics(detail.data).map((metric) => (
+            <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
+          ))}
+        </dl>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="odds-heading">
+        <h3 className="text-sm font-semibold" id="odds-heading">
+          2026 Sportsbook Consensus
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Supplied season lines, kept separate from FantasyPros projections.
+          {oddsSource && ` Captured ${formatCapturedAt(oddsSource.captured_at)}.`}
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {oddsMetrics(detail.data).map((metric) => (
             <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
           ))}
         </dl>

@@ -1,0 +1,94 @@
+Rank,Player,Team,Prop,Consensus_Line,Line_Range,Books_Two_Way,Circa_Line,Circa_Over,Circa_Under,DraftKings_Line,DraftKings_Over,DraftKings_Under,FanDuel_Line,FanDuel_Over,FanDuel_Under,Caesars_Line,Caesars_Over,Caesars_Under,Best_Over_Book,Best_Over_Line,Best_Over_Odds,Flag
+1,Puka Nacua,LAR,Rec Yards,1363.0,25.0,2,1350.5,-115,-115,1499.5,140,,1375.5,-114,-114,,,,FanDuel,1375.5,-114,one-way quote only: DraftKings
+2,Ja'Marr Chase,CIN,Rec Yards,1325.2,1.0,3,1325.5,-105,-125,1324.5,-110,-110,1325.5,-114,-114,,,,Circa,1325.5,-105,
+3,Jaxon Smith-Njigba,SEA,Rec Yards,1325.2,1.0,3,1325.5,-115,-115,1324.5,-110,-110,1325.5,-114,-114,,,,DraftKings,1324.5,-110,
+4,Amon-Ra St. Brown,DET,Rec Yards,1225.2,49.0,3,1200.5,-115,-115,1249.5,-110,-110,1225.5,-114,-114,,,,DraftKings,1249.5,-110,
+5,CeeDee Lamb,DAL,Rec Yards,1200.2,1.0,3,1200.5,-105,-125,1199.5,-110,-110,1200.5,-114,-114,,,,Circa,1200.5,-105,
+6,Justin Jefferson,MIN,Rec Yards,1158.5,26.0,3,1175.5,-105,-125,1149.5,-110,-110,1150.5,-114,-114,,,,Circa,1175.5,-105,
+7,Nico Collins,HOU,Rec Yards,1125.2,75.0,3,1075.5,-115,-115,1149.5,-110,-110,1150.5,-114,-114,,,,DraftKings,1149.5,-110,
+8,A.J. Brown,NE,Rec Yards,1100.2,75.0,3,1050.5,-115,-115,1124.5,-110,-110,1125.5,-114,-114,,,,DraftKings,1124.5,-110,
+9,Drake London,ATL,Rec Yards,1100.2,1.0,3,1100.5,-115,-115,1099.5,-105,-115,1100.5,-114,-114,,,,DraftKings,1099.5,-105,
+10,George Pickens,DAL,Rec Yards,1041.8,25.0,3,1025.5,-115,-115,1049.5,-110,-110,1050.5,-114,-114,,,,DraftKings,1049.5,-110,
+11,Chris Olave,NO,Rec Yards,1037.5,24.0,2,,,,1049.5,-115,-105,1025.5,-114,-114,,,,FanDuel,1025.5,-114,
+12,DeVonta Smith,PHI,Rec Yards,1025.0,49.0,2,1000.5,-115,-115,1049.5,100,-120,,,,,,,DraftKings,1049.5,100,
+13,Zay Flowers,BAL,Rec Yards,987.5,24.0,2,,,,999.5,-110,-110,975.5,-114,-114,,,,DraftKings,999.5,-110,
+14,Malik Nabers,NYG,Rec Yards,975.5,0.0,1,,,,999.5,-110,,975.5,-114,-114,,,,FanDuel,975.5,-114,one-way quote only: DraftKings
+15,Garrett Wilson,NYJ,Rec Yards,975.2,49.0,3,950.5,-115,-115,999.5,-110,-110,975.5,-114,-114,,,,DraftKings,999.5,-110,
+16,Trey McBride,ARI,Rec Yards,958.5,74.0,3,925.5,-115,-115,999.5,-110,-110,950.5,-114,-114,,,,DraftKings,999.5,-110,
+17,Tetairoa McMillan,CAR,Rec Yards,950.2,1.0,3,950.5,-115,-115,949.5,-110,-110,950.5,-114,-114,,,,DraftKings,949.5,-110,
+18,Josh Williams,FA,Rec Yards,925.5,0.0,1,925.5,-115,-115,,,,,,,,,,Circa,925.5,-115,
+19,Brock Bowers,LV,Rec Yards,925.2,49.0,3,900.5,-120,-110,949.5,-110,-110,925.5,-114,-114,,,,DraftKings,949.5,-110,
+20,Jameson Williams,DET,Rec Yards,912.5,24.0,2,,,,924.5,-110,-110,900.5,-114,-114,,,,DraftKings,924.5,-110,
+21,Jaylen Waddle,DEN,Rec Yards,908.5,24.0,3,900.5,-115,-115,924.5,-120,100,900.5,-114,-114,,,,FanDuel,900.5,-114,
+22,Terry McLaurin,WAS,Rec Yards,900.2,49.0,3,875.5,-115,-115,924.5,-110,-110,900.5,-114,-114,,,,DraftKings,924.5,-110,
+23,Ladd McConkey,LAC,Rec Yards,891.8,25.0,3,875.5,-115,-115,899.5,-110,-110,900.5,-114,-114,,,,DraftKings,899.5,-110,
+24,Tee Higgins,CIN,Rec Yards,883.5,26.0,3,875.5,-115,-115,874.5,-110,-110,900.5,-114,-114,,,,DraftKings,874.5,-110,
+25,Luther Burden,CHI,Rec Yards,866.8,51.0,3,900.5,-130,100,849.5,-110,-110,850.5,-114,-114,,,,DraftKings,849.5,-110,
+26,DJ Moore,BUF,Rec Yards,825.0,1.0,2,825.5,-130,100,824.5,-115,-105,,,,,,,DraftKings,824.5,-115,
+27,Parker Washington,JAX,Rec Yards,824.5,0.0,1,,,,824.5,-110,-110,,,,,,,DraftKings,824.5,-110,
+28,Colston Loveland,CHI,Rec Yards,816.8,25.0,3,800.5,-115,-115,824.5,-110,-110,825.5,-114,-114,,,,DraftKings,824.5,-110,
+29,Marvin Harrison,ARI,Rec Yards,812.5,24.0,2,,,,824.5,-110,-110,800.5,-114,-114,,,,DraftKings,824.5,-110,
+30,Rome Odunze,CHI,Rec Yards,808.5,24.0,3,800.5,-110,-120,824.5,-110,-110,800.5,-114,-114,,,,Circa,800.5,-110,
+31,Mike Evans,SF,Rec Yards,800.2,49.0,3,775.5,-115,-115,824.5,-110,-110,800.5,-114,-114,,,,DraftKings,824.5,-110,
+32,DK Metcalf,PIT,Rec Yards,800.0,49.0,2,775.5,-115,-115,824.5,-110,-110,,,,,,,DraftKings,824.5,-110,
+33,Christian Watson,GB,Rec Yards,775.0,1.0,2,,,,774.5,-110,-110,775.5,-114,-114,,,,DraftKings,774.5,-110,
+34,Davante Adams,LAR,Rec Yards,766.8,25.0,3,750.5,-115,-115,774.5,-110,-110,775.5,-114,-114,,,,DraftKings,774.5,-110,
+35,Tyler Warren,IND,Rec Yards,766.8,25.0,3,775.5,-115,-115,774.5,-110,-110,750.5,-114,-114,,,,DraftKings,774.5,-110,
+36,Carnell Tate,TEN,Rec Yards,766.8,25.0,3,750.5,-115,-115,774.5,-105,-115,775.5,-114,-114,,,,DraftKings,774.5,-105,
+37,Kyle Pitts,ATL,Rec Yards,750.2,49.0,3,750.5,-115,-115,774.5,-110,-110,725.5,-114,-114,,,,DraftKings,774.5,-110,
+38,Michael Pittman,PIT,Rec Yards,750.0,1.0,2,,,,749.5,-105,-115,750.5,-114,-114,,,,DraftKings,749.5,-105,
+39,Stefon Diggs,WAS,Rec Yards,749.5,0.0,1,,,,749.5,-110,-110,,,,,,,DraftKings,749.5,-110,
+40,Tre Watson,FA,Rec Yards,725.5,0.0,1,725.5,-115,-115,,,,,,,,,,Circa,725.5,-115,
+41,Michael Wilson,ARI,Rec Yards,724.5,0.0,1,,,,724.5,110,-130,,,,,,,DraftKings,724.5,110,
+42,Courtland Sutton,DEN,Rec Yards,712.5,26.0,2,,,,699.5,-110,-110,725.5,-114,-114,,,,DraftKings,699.5,-110,
+43,George Kittle,SF,Rec Yards,700.2,1.0,3,700.5,-115,-115,699.5,-110,-110,700.5,-114,-114,,,,DraftKings,699.5,-110,
+44,Brian Thomas,JAX,Rec Yards,700.0,49.0,2,675.5,100,-130,724.5,-105,-115,,,,,,,Circa,675.5,100,
+45,Harold Fannin,CLE,Rec Yards,699.5,0.0,1,,,,699.5,-110,-110,,,,,,,DraftKings,699.5,-110,
+46,Chris Godwin,TB,Rec Yards,699.5,0.0,1,,,,699.5,-110,-110,,,,,,,DraftKings,699.5,-110,
+47,Tucker Kraft,GB,Rec Yards,699.5,0.0,1,,,,699.5,-105,-115,,,,,,,DraftKings,699.5,-105,
+48,Jayden Reed,GB,Rec Yards,674.5,0.0,1,,,,674.5,-115,-105,,,,,,,DraftKings,674.5,-115,
+49,Jordan Addison,MIN,Rec Yards,674.5,0.0,1,,,,674.5,-110,-110,,,,,,,DraftKings,674.5,-110,
+50,Wan'Dale Robinson,TEN,Rec Yards,674.5,0.0,1,,,,674.5,-110,-110,,,,,,,DraftKings,674.5,-110,
+51,Travis Kelce,KC,Rec Yards,666.8,25.0,3,650.5,-115,-115,674.5,-110,-110,675.5,-114,-114,,,,DraftKings,674.5,-110,
+52,Matthew Golden,GB,Rec Yards,649.5,0.0,1,,,,649.5,-115,-105,,,,,,,DraftKings,649.5,-115,
+53,Romeo Doubs,NE,Rec Yards,649.5,0.0,1,,,,649.5,-110,-110,,,,,,,DraftKings,649.5,-110,
+54,Quentin Johnston,LAC,Rec Yards,649.5,0.0,1,,,,649.5,-110,-110,,,,,,,DraftKings,649.5,-110,
+55,De'Zhaun Stribling,SF,Rec Yards,649.5,0.0,1,,,,649.5,-110,-110,,,,,,,DraftKings,649.5,-110,
+56,Xavier Worthy,KC,Rec Yards,649.5,0.0,1,,,,649.5,-110,-110,,,,,,,DraftKings,649.5,-110,
+57,Deebo Samuel,SF,Rec Yards,624.5,0.0,1,,,,624.5,-105,-115,,,,,,,DraftKings,624.5,-105,
+58,KC Concepcion,CLE,Rec Yards,608.5,26.0,3,625.5,-115,-115,599.5,-110,-110,600.5,-114,-114,,,,DraftKings,599.5,-110,
+59,Juwan Johnson,NO,Rec Yards,599.5,0.0,1,,,,599.5,-110,-110,,,,,,,DraftKings,599.5,-110,
+60,Dontayvion Wicks,PHI,Rec Yards,599.5,0.0,1,,,,599.5,-110,-110,,,,,,,DraftKings,599.5,-110,
+61,Makai Lemon,PHI,Rec Yards,575.5,0.0,2,575.5,-115,-115,749.5,220,,575.5,-114,-114,,,,FanDuel,575.5,-114,one-way quote only: DraftKings
+62,Bijan Robinson,ATL,Rec Yards,574.5,0.0,1,,,,574.5,-115,-105,,,,,,,DraftKings,574.5,-115,
+63,Dallas Goedert,PHI,Rec Yards,574.5,0.0,1,,,,574.5,-110,-110,,,,,,,DraftKings,574.5,-110,
+64,Tre Tucker,LV,Rec Yards,574.5,0.0,1,,,,574.5,-110,-110,,,,,,,DraftKings,574.5,-110,
+65,Christian McCaffrey,SF,Rec Yards,562.5,24.0,2,,,,574.5,-110,-110,550.5,-114,-114,,,,DraftKings,574.5,-110,
+66,Jerry Jeudy,CLE,Rec Yards,549.5,0.0,1,,,,549.5,-110,-110,,,,,,,DraftKings,549.5,-110,
+67,Dalton Kincaid,BUF,Rec Yards,549.5,0.0,1,,,,549.5,-110,-110,,,,,,,DraftKings,549.5,-110,
+68,Rashid Shaheed,SEA,Rec Yards,541.8,74.0,3,550.5,-130,100,574.5,-110,-110,500.5,-114,-114,,,,DraftKings,574.5,-110,
+69,Luke McCaffrey,WAS,Rec Yards,525.5,0.0,1,525.5,-115,-115,,,,,,,,,,Circa,525.5,-115,
+70,Jake Ferguson,DAL,Rec Yards,524.5,0.0,1,,,,524.5,-110,-110,,,,,,,DraftKings,524.5,-110,
+71,Denzel Boston,CLE,Rec Yards,499.5,0.0,1,,,,499.5,-110,-110,,,,,,,DraftKings,499.5,-110,
+72,Mark Andrews,BAL,Rec Yards,491.8,25.0,3,475.5,-115,-115,499.5,-110,-110,500.5,-114,-114,,,,DraftKings,499.5,-110,
+73,T.J. Hockenson,MIN,Rec Yards,474.5,0.0,1,,,,474.5,-110,-110,,,,,,,DraftKings,474.5,-110,
+74,Jahmyr Gibbs,DET,Rec Yards,466.8,26.0,3,475.5,-110,-120,449.5,-110,-110,475.5,-114,-114,,,,Circa,475.5,-110,
+75,Omar Cooper,NYJ,Rec Yards,450.2,50.0,3,475.5,-115,-115,449.5,-105,-115,425.5,-114,-114,,,,DraftKings,449.5,-105,
+76,Kenyon Sadiq,NYJ,Rec Yards,425.5,0.0,1,425.5,-105,-125,,,,,,,,,,Circa,425.5,-105,
+77,Rashee Rice,KC,Rec Yards,,,0,,,,999.5,-110,,,,,,,,,,,one-way quote only: DraftKings
+78,Emeka Egbuka,TB,Rec Yards,,,0,,,,999.5,125,,,,,,,,,,,one-way quote only: DraftKings
+79,Alec Pierce,IND,Rec Yards,,,0,,,,999.5,125,,,,,,,,,,,one-way quote only: DraftKings
+80,Josh Downs,IND,Rec Yards,,,0,,,,999.5,220,,,,,,,,,,,one-way quote only: DraftKings
+81,Oronde Gadsden,LAC,Rec Yards,,,0,,,,999.5,350,,,,,,,,,,,one-way quote only: DraftKings
+82,Khalil Shakir,BUF,Rec Yards,,,0,,,,999.5,400,,,,,,,,,,,one-way quote only: DraftKings
+83,Tre' Harris,LAC,Rec Yards,,,0,,,,999.5,550,,,,,,,,,,,one-way quote only: DraftKings
+84,Malik Washington,MIA,Rec Yards,,,0,,,,999.5,600,,,,,,,,,,,one-way quote only: DraftKings
+85,Calvin Ridley,TEN,Rec Yards,,,0,,,,999.5,650,,,,,,,,,,,one-way quote only: DraftKings
+86,Adonai Mitchell,NYJ,Rec Yards,,,0,,,,999.5,750,,,,,,,,,,,one-way quote only: DraftKings
+87,Kayshon Boutte,HOU,Rec Yards,,,0,,,,749.5,120,,,,,,,,,,,one-way quote only: DraftKings
+88,Isaiah Likely,NYG,Rec Yards,,,0,,,,749.5,125,,,,,,,,,,,one-way quote only: DraftKings
+89,Keenan Allen,IND,Rec Yards,,,0,,,,749.5,150,,,,,,,,,,,one-way quote only: DraftKings
+90,Jalen Coker,CAR,Rec Yards,,,0,,,,749.5,150,,,,,,,,,,,one-way quote only: DraftKings
+91,Jakobi Meyers,JAX,Rec Yards,,,0,,,,749.5,170,,,,,,,,,,,one-way quote only: DraftKings
+92,Sam LaPorta,DET,Rec Yards,,,0,,,,749.5,180,,,,,,,,,,,one-way quote only: DraftKings
+93,Evan Engram,DEN,Rec Yards,,,0,,,,749.5,425,,,,,,,,,,,one-way quote only: DraftKings

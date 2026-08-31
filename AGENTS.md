@@ -220,6 +220,7 @@ Extract a component when it's reused, a page becomes hard to read, or a distinct
 - **ECR** = FantasyPros all-position half-PPR Draft Expert Consensus Ranking; it is an overall rank. Position rank is stored and displayed separately.
 - **tier** = the overall tier supplied with FantasyPros Draft ECR — never an app-generated recommendation.
 - **projection** = a provider forecast, currently FantasyPros 2026 volume stats — never label it as a sportsbook line or historical result.
+- **Sportsbook consensus** = the externally supplied `Consensus_Line` / `Consensus_Win_Total` snapshot — the app imports it and never claims to calculate its own consensus.
 
 **Data conventions:** ISO-8601 UTC timestamps in JSON and in the DB (per §4); integer seasons (`2025`) and weeks (`1`); numbers are JSON numbers (only inherently string-like external IDs are strings). Missing values render as `—`, never as `0`, and sort after real values. Season-specific values live in season/source tables, never as `2025_*` columns on `players`.
 
@@ -245,7 +246,7 @@ Do not build unless explicitly requested later: auth, accounts, multi-tenancy, c
 
 Do not build speculative features just because the schema could support them. If the project is ever deployed publicly, revisit security before treating it as safe.
 
-**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** odds provider/consensus methodology, extra scoring settings, deployment.
+**Unresolved decisions — follow the SPEC.md per-dataset approval gate before choosing:** future odds refresh/source changes, extra scoring settings, deployment.
 
 ---
 

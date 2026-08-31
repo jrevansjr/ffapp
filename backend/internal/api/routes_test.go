@@ -112,8 +112,15 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	if detail.WeeklySummary.Average == nil || detail.Player.ProviderIDs.Sportradar == nil ||
 		detail.Player.ProviderIDs.GSIS == nil ||
 		detail.Weekly[0].PassingYards == 0 || detail.Projections == nil ||
-		detail.Projections.PassingTouchdowns == nil {
+		detail.Projections.PassingTouchdowns == nil || detail.Odds.PassingYards == nil ||
+		detail.Odds.PassingTouchdowns == nil || detail.Odds.RushingYards == nil ||
+		detail.Odds.RushingTouchdowns == nil || detail.Odds.TeamWins == nil ||
+		detail.Odds.ReceivingYards != nil {
 		t.Fatal("player detail is missing summary, provider identity, or passing yards")
+	}
+	if detail.Odds.PassingYards.Source != "sportsbook_consensus" ||
+		detail.Odds.PassingYards.CapturedAt != "2026-08-31T01:23:28Z" {
+		t.Fatalf("passing-yards provenance = %#v", detail.Odds.PassingYards)
 	}
 }
 
@@ -139,7 +146,7 @@ func TestPlayerDetailHandlesMissingValues(t *testing.T) {
 	decodeResponse(t, recorder, &response)
 	if response.Player.NFLTeam != nil || response.Player.Age != nil || response.Season != nil ||
 		response.Draft.AggregateADP != nil || response.Draft.ECR != nil || response.Draft.Tier != nil ||
-		response.Projections != nil || response.Odds.Touchdowns != nil || response.WeeklySummary.Average != nil {
+		response.Projections != nil || response.Odds.ReceivingYards != nil || response.WeeklySummary.Average != nil {
 		t.Fatal("missing optional values should be encoded as null")
 	}
 	if response.Weekly == nil || len(response.Weekly) != 0 {
@@ -499,10 +506,13 @@ func loadAPITestFixture(t *testing.T, db *sql.DB) {
 			player_id, season, source, passing_yards, passing_touchdowns,
 			rushing_yards, rushing_touchdowns, updated_at
 		) VALUES (1, 2026, 'fantasypros', 4000.5, 30.2, 350.1, 4.5, '2026-08-01T00:00:00Z');
-		INSERT INTO odds (season, source, market, player_id, line, captured_at)
-		VALUES (2026, 'fixture', 'total_touchdowns', 1, 1.5, '2026-08-01T00:00:00Z');
+		INSERT INTO odds (season, source, market, player_id, line, captured_at) VALUES
+			(2026, 'sportsbook_consensus', 'passing_yards', 1, 3999.5, '2026-08-31T01:23:28Z'),
+			(2026, 'sportsbook_consensus', 'passing_touchdowns', 1, 29.5, '2026-08-31T01:23:28Z'),
+			(2026, 'sportsbook_consensus', 'rushing_yards', 1, 349.5, '2026-08-31T01:23:28Z'),
+			(2026, 'sportsbook_consensus', 'rushing_touchdowns', 1, 4.5, '2026-08-31T01:23:28Z');
 		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)
-		VALUES (2026, 'fixture', 'regular_season_wins', 1, 8.5, '2026-08-01T00:00:00Z');
+		VALUES (2026, 'sportsbook_consensus', 'regular_season_wins', 1, 8.5, '2026-08-31T01:23:28Z');
 		INSERT INTO drafts (id, sleeper_draft_id, mode, status, created_at, updated_at)
 		VALUES (1, 'fixture-draft', 'live', 'mock', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
 		INSERT INTO draft_picks (

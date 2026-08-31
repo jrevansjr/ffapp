@@ -1,0 +1,33 @@
+Rank,Team,Conference,Division,Consensus_Win_Total,BetMGM_Total,BetMGM_Over_Price,Caesars_Total,Caesars_Over_Price,BetRivers_Total,BetRivers_Over_Price,BetMGM_Priced_Lean
+1,Los Angeles Rams,NFC,West,11.5,11.5,-140,11.5,-140,11.5,-134,Over
+2,Baltimore Ravens,AFC,North,10.83,10.5,-155,11.5,130,10.5,-148,Over
+3,Buffalo Bills,AFC,East,10.5,10.5,-130,10.5,-135,10.5,-139,Over
+4,Cincinnati Bengals,AFC,North,10.5,10.5,115,10.5,100,10.5,110,Under
+5,Detroit Lions,NFC,North,10.5,10.5,-130,10.5,-120,10.5,-134,Over
+6,Kansas City Chiefs,AFC,West,10.5,10.5,120,10.5,120,10.5,115,Under
+7,Philadelphia Eagles,NFC,East,10.5,10.5,120,10.5,125,10.5,120,Under
+8,Seattle Seahawks,NFC,West,10.5,10.5,-125,10.5,-130,10.5,-121,Over
+9,San Francisco 49ers,NFC,West,10.17,10.5,115,10.5,140,9.5,-134,Under
+10,Green Bay Packers,NFC,North,9.83,9.5,-130,10.5,160,9.5,-134,Over
+11,Los Angeles Chargers,AFC,West,9.83,9.5,-140,10.5,120,9.5,-148,Over
+12,Chicago Bears,NFC,North,9.5,9.5,105,9.5,110,9.5,100,Under
+13,Dallas Cowboys,NFC,East,9.5,9.5,-110,9.5,-115,9.5,105,Over
+14,Denver Broncos,AFC,West,9.5,9.5,-125,9.5,-135,9.5,-127,Over
+15,Houston Texans,AFC,South,9.5,9.5,-145,9.5,-170,9.5,-148,Over
+16,New England Patriots,AFC,East,9.5,9.5,-145,9.5,-145,9.5,-148,Over
+17,Jacksonville Jaguars,AFC,South,9.17,8.5,-140,9.5,115,9.5,110,Over
+18,Minnesota Vikings,NFC,North,8.5,8.5,-125,8.5,-140,8.5,-121,Over
+19,Pittsburgh Steelers,AFC,North,8.5,8.5,115,8.5,115,8.5,110,Under
+20,Tampa Bay Buccaneers,NFC,South,8.5,8.5,120,8.5,122,8.5,110,Under
+21,Indianapolis Colts,AFC,South,7.83,7.5,-145,8.5,115,7.5,-136,Over
+22,Atlanta Falcons,NFC,South,7.5,7.5,115,7.5,120,7.5,115,Under
+23,New Orleans Saints,NFC,South,7.5,7.5,-125,7.5,-125,7.5,-121,Over
+24,New York Giants,NFC,East,7.5,7.5,-102,7.5,105,7.5,-110,Even
+25,Washington Commanders,NFC,East,7.5,7.5,105,7.5,110,7.5,100,Under
+26,Carolina Panthers,NFC,South,7.17,7.5,125,6.5,-145,7.5,120,Under
+27,Tennessee Titans,AFC,South,6.5,6.5,115,6.5,100,6.5,105,Under
+28,Las Vegas Raiders,AFC,West,5.83,5.5,-125,6.5,135,5.5,-148,Over
+29,Cleveland Browns,AFC,North,5.5,5.5,-135,5.5,-115,5.5,-115,Over
+30,New York Jets,AFC,East,5.5,5.5,-110,5.5,-110,5.5,-110,Over
+31,Arizona Cardinals,NFC,West,3.83,3.5,-145,4.5,130,3.5,-139,Over
+32,Miami Dolphins,AFC,East,3.5,3.5,-140,3.5,-150,3.5,-139,Over

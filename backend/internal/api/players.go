@@ -49,11 +49,6 @@ type seasonStatsResponse struct {
 	RushingTouchdowns      int      `json:"rushing_touchdowns"`
 }
 
-type playerListOddsResponse struct {
-	TouchdownLine *float64 `json:"touchdown_line"`
-	TeamWinLine   *float64 `json:"team_win_line"`
-}
-
 type playerProjectionsResponse struct {
 	Season              int      `json:"season"`
 	Source              string   `json:"source"`
@@ -82,7 +77,6 @@ type playerListResponse struct {
 	Draft              playerDraftResponse        `json:"draft"`
 	Season             *seasonStatsResponse       `json:"season"`
 	Projections        *playerProjectionsResponse `json:"projections"`
-	Odds               playerListOddsResponse     `json:"odds"`
 	IsTaken            bool                       `json:"is_taken"`
 }
 
@@ -135,8 +129,13 @@ type oddsLineResponse struct {
 }
 
 type playerOddsResponse struct {
-	Touchdowns *oddsLineResponse `json:"touchdowns"`
-	TeamWins   *oddsLineResponse `json:"team_wins"`
+	PassingYards        *oddsLineResponse `json:"passing_yards"`
+	PassingTouchdowns   *oddsLineResponse `json:"passing_touchdowns"`
+	RushingYards        *oddsLineResponse `json:"rushing_yards"`
+	RushingTouchdowns   *oddsLineResponse `json:"rushing_touchdowns"`
+	ReceivingYards      *oddsLineResponse `json:"receiving_yards"`
+	ReceivingTouchdowns *oddsLineResponse `json:"receiving_touchdowns"`
+	TeamWins            *oddsLineResponse `json:"team_wins"`
 }
 
 type weeklyStatsResponse struct {
@@ -252,11 +251,7 @@ func newPlayerListResponse(player database.PlayerListItem, now time.Time) player
 		Draft:              newPlayerDraftResponse(player.Draft),
 		Season:             newSeasonStatsResponse(player.Season),
 		Projections:        newPlayerProjectionsResponse(player.Projections),
-		Odds: playerListOddsResponse{
-			TouchdownLine: player.TouchdownLine,
-			TeamWinLine:   player.TeamWinLine,
-		},
-		IsTaken: player.IsTaken,
+		IsTaken:            player.IsTaken,
 	}
 }
 
@@ -398,8 +393,13 @@ func newPlayerDraftResponse(data database.PlayerDraftData) playerDraftResponse {
 
 func newPlayerOddsResponse(odds database.PlayerOdds) playerOddsResponse {
 	return playerOddsResponse{
-		Touchdowns: newOddsLineResponse(odds.Touchdowns),
-		TeamWins:   newOddsLineResponse(odds.TeamWins),
+		PassingYards:        newOddsLineResponse(odds.PassingYards),
+		PassingTouchdowns:   newOddsLineResponse(odds.PassingTouchdowns),
+		RushingYards:        newOddsLineResponse(odds.RushingYards),
+		RushingTouchdowns:   newOddsLineResponse(odds.RushingTouchdowns),
+		ReceivingYards:      newOddsLineResponse(odds.ReceivingYards),
+		ReceivingTouchdowns: newOddsLineResponse(odds.ReceivingTouchdowns),
+		TeamWins:            newOddsLineResponse(odds.TeamWins),
 	}
 }
 

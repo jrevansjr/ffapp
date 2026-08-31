@@ -1,0 +1,6 @@
+{
+  "season": 2026,
+  "source": "sportsbook_consensus",
+  "captured_at": "2026-08-31T01:23:28Z",
+  "description": "User-supplied sportsbook consensus snapshot. Consensus values are imported as provided; the application does not recompute them."
+}

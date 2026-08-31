@@ -50,8 +50,6 @@ type PlayerListItem struct {
 	Draft              PlayerDraftData
 	Season             *PlayerSeasonStats
 	Projections        *PlayerProjections
-	TouchdownLine      *float64
-	TeamWinLine        *float64
 	IsTaken            bool
 }
 
@@ -163,10 +161,15 @@ type OddsLine struct {
 	CapturedAt string
 }
 
-// PlayerOdds groups the two odds markets currently shown for a player.
+// PlayerOdds groups position-relevant player futures with the player's NFL-team win total.
 type PlayerOdds struct {
-	Touchdowns *OddsLine
-	TeamWins   *OddsLine
+	PassingYards        *OddsLine
+	PassingTouchdowns   *OddsLine
+	RushingYards        *OddsLine
+	RushingTouchdowns   *OddsLine
+	ReceivingYards      *OddsLine
+	ReceivingTouchdowns *OddsLine
+	TeamWins            *OddsLine
 }
 
 // PlayerDetail combines normalized player data for the detail API response.
@@ -226,8 +229,6 @@ func ListPlayers(ctx context.Context, db *sql.DB, filters PlayerFilters) ([]Play
 			projections.receiving_yards,
 			projections.receiving_touchdowns,
 			projections.updated_at,
-			(SELECT line FROM odds WHERE player_id = players.id AND season = 2026 AND market = 'total_touchdowns' ORDER BY captured_at DESC, source LIMIT 1),
-			(SELECT line FROM odds WHERE nfl_team_id = players.nfl_team_id AND season = 2026 AND market = 'regular_season_wins' ORDER BY captured_at DESC, source LIMIT 1),
 			` + takenPlayerExpression + ` AS is_taken
 		FROM players
 		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
@@ -295,7 +296,6 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		receivingYards, rushingYards, receivingTDs, rushingTDs         sql.NullInt64
 		ecr, positionRank, tier, rankMin, rankMax                      sql.NullInt64
 		aggregateADP, rankStdDev, fantasyPoints                        sql.NullFloat64
-		touchdownLine, teamWinLine                                     sql.NullFloat64
 		projectionSeason                                               sql.NullInt64
 		projectionSource, projectionUpdatedAt                          sql.NullString
 		passingProjection, passingTDProjection                         sql.NullFloat64
@@ -345,8 +345,6 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		&receivingProjection,
 		&receivingTDProjection,
 		&projectionUpdatedAt,
-		&touchdownLine,
-		&teamWinLine,
 		&isTaken,
 	); err != nil {
 		return PlayerListItem{}, fmt.Errorf("scan player list item: %w", err)
@@ -369,8 +367,6 @@ func scanPlayerListItem(rows *sql.Rows) (PlayerListItem, error) {
 		RankMax:      nullIntPointer(rankMax),
 		RankStdDev:   nullFloatPointer(rankStdDev),
 	}
-	player.TouchdownLine = nullFloatPointer(touchdownLine)
-	player.TeamWinLine = nullFloatPointer(teamWinLine)
 	player.IsTaken = isTaken == 1
 	if projectionSeason.Valid {
 		player.Projections = &PlayerProjections{
@@ -668,17 +664,30 @@ func loadPlayerOdds(
 	team *NFLTeam,
 ) (PlayerOdds, error) {
 	var odds PlayerOdds
-	line, err := loadOddsLine(ctx, db, "player_id", playerID, "total_touchdowns")
-	if err != nil {
+	var err error
+	if odds.PassingYards, err = loadOddsLine(ctx, db, "player_id", playerID, "passing_yards"); err != nil {
 		return PlayerOdds{}, err
 	}
-	odds.Touchdowns = line
+	if odds.PassingTouchdowns, err = loadOddsLine(ctx, db, "player_id", playerID, "passing_touchdowns"); err != nil {
+		return PlayerOdds{}, err
+	}
+	if odds.RushingYards, err = loadOddsLine(ctx, db, "player_id", playerID, "rushing_yards"); err != nil {
+		return PlayerOdds{}, err
+	}
+	if odds.RushingTouchdowns, err = loadOddsLine(ctx, db, "player_id", playerID, "rushing_touchdowns"); err != nil {
+		return PlayerOdds{}, err
+	}
+	if odds.ReceivingYards, err = loadOddsLine(ctx, db, "player_id", playerID, "receiving_yards"); err != nil {
+		return PlayerOdds{}, err
+	}
+	if odds.ReceivingTouchdowns, err = loadOddsLine(ctx, db, "player_id", playerID, "receiving_touchdowns"); err != nil {
+		return PlayerOdds{}, err
+	}
 	if team != nil {
-		line, err = loadOddsLine(ctx, db, "nfl_team_id", team.ID, "regular_season_wins")
+		odds.TeamWins, err = loadOddsLine(ctx, db, "nfl_team_id", team.ID, "regular_season_wins")
 		if err != nil {
 			return PlayerOdds{}, err
 		}
-		odds.TeamWins = line
 	}
 	return odds, nil
 }
@@ -700,7 +709,10 @@ func loadOddsLine(
 	query := `
 		SELECT season, source, market, line, over_price, under_price, captured_at
 		FROM odds
-		WHERE ` + subjectColumn + ` = ? AND season = 2026 AND market = ?
+		WHERE ` + subjectColumn + ` = ?
+			AND season = 2026
+			AND source = 'sportsbook_consensus'
+			AND market = ?
 		ORDER BY captured_at DESC, source
 		LIMIT 1
 	`

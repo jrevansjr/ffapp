@@ -84,11 +84,6 @@ export interface PlayerSeasonStats {
   rushing_touchdowns: number
 }
 
-export interface PlayerOdds {
-  touchdown_line: number | null
-  team_win_line: number | null
-}
-
 /** PlayerProjections is FantasyPros' 2026 preseason volume forecast. */
 export interface PlayerProjections {
   season: number
@@ -119,7 +114,6 @@ export interface PlayerListItem {
   draft: PlayerDraftData
   season: PlayerSeasonStats | null
   projections: PlayerProjections | null
-  odds: PlayerOdds
   is_taken: boolean
 }
 
@@ -179,7 +173,12 @@ export interface OddsLine {
 }
 
 export interface PlayerDetailOdds {
-  touchdowns: OddsLine | null
+  passing_yards: OddsLine | null
+  passing_touchdowns: OddsLine | null
+  rushing_yards: OddsLine | null
+  rushing_touchdowns: OddsLine | null
+  receiving_yards: OddsLine | null
+  receiving_touchdowns: OddsLine | null
   team_wins: OddsLine | null
 }
 

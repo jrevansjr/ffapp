@@ -27,6 +27,7 @@ type validationMinimums struct {
 	SeasonStats int
 	FantasyPros int
 	Projections int
+	Odds        int
 }
 
 // Rebuild constructs and validates the complete real-data database before
@@ -82,6 +83,7 @@ func (runner *Runner) validationMinimums() validationMinimums {
 		SeasonStats: runner.MinimumSeasonStats,
 		FantasyPros: runner.MinimumFantasyProsRows,
 		Projections: runner.MinimumProjectionRows,
+		Odds:        runner.MinimumOddsRows,
 	}
 }
 
@@ -354,8 +356,49 @@ func validateRealDataDatabase(dbPath string, minimums validationMinimums) error 
 	if invalidProjections != 0 {
 		return fmt.Errorf("found %d projection rows outside the M6.4 contract", invalidProjections)
 	}
+	var oddsCount int
+	if err := db.QueryRow(`
+		SELECT COUNT(*) FROM odds
+		WHERE season = 2026 AND source = 'sportsbook_consensus'
+	`).Scan(&oddsCount); err != nil {
+		return fmt.Errorf("count sportsbook consensus rows: %w", err)
+	}
+	if oddsCount < minimums.Odds {
+		return fmt.Errorf(
+			"sportsbook consensus row count is %d; expected at least %d",
+			oddsCount,
+			minimums.Odds,
+		)
+	}
+	var invalidOdds int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM odds
+		LEFT JOIN players ON players.id = odds.player_id
+		WHERE odds.season != 2026
+			OR odds.source != 'sportsbook_consensus'
+			OR odds.line <= 0
+			OR odds.over_price IS NOT NULL
+			OR odds.under_price IS NOT NULL
+			OR odds.captured_at = ''
+			OR (odds.player_id IS NOT NULL AND (
+				(odds.market IN ('passing_yards', 'passing_touchdowns') AND players.position != 'QB')
+				OR (odds.market IN ('rushing_yards', 'rushing_touchdowns') AND players.position NOT IN ('QB', 'RB'))
+				OR (odds.market IN ('receiving_yards', 'receiving_touchdowns') AND players.position NOT IN ('RB', 'WR', 'TE'))
+				OR odds.market NOT IN (
+					'passing_yards', 'passing_touchdowns',
+					'rushing_yards', 'rushing_touchdowns',
+					'receiving_yards', 'receiving_touchdowns'
+				)
+			))
+			OR (odds.nfl_team_id IS NOT NULL AND odds.market != 'regular_season_wins')
+	`).Scan(&invalidOdds); err != nil {
+		return fmt.Errorf("validate sportsbook consensus rows: %w", err)
+	}
+	if invalidOdds != 0 {
+		return fmt.Errorf("found %d odds rows outside the M8.1 contract", invalidOdds)
+	}
 	for _, table := range []string{
-		"odds",
 		"drafts",
 		"draft_picks",
 	} {
@@ -424,6 +467,7 @@ func validateReferenceTimestamps(db *sql.DB) error {
 		UNION ALL SELECT 'player_rankings.updated_at', updated_at FROM player_rankings
 		UNION ALL SELECT 'player_tiers.updated_at', updated_at FROM player_tiers
 		UNION ALL SELECT 'player_projections.updated_at', updated_at FROM player_projections
+		UNION ALL SELECT 'odds.captured_at', captured_at FROM odds
 	`)
 	if err != nil {
 		return fmt.Errorf("load reference timestamps: %w", err)

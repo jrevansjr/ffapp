@@ -83,4 +83,9 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if detail.Projections == nil || detail.Projections.PassingTouchdowns == nil {
 		t.Fatal("detail projections are missing")
 	}
+	if detail.Odds.PassingYards == nil || detail.Odds.PassingTouchdowns == nil ||
+		detail.Odds.RushingYards == nil || detail.Odds.RushingTouchdowns == nil ||
+		detail.Odds.TeamWins == nil || detail.Odds.ReceivingYards != nil {
+		t.Fatalf("detail odds = %#v, want QB markets and team wins only", detail.Odds)
+	}
 }
