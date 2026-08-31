@@ -115,12 +115,16 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 		detail.Projections.PassingTouchdowns == nil || detail.Odds.PassingYards == nil ||
 		detail.Odds.PassingTouchdowns == nil || detail.Odds.RushingYards == nil ||
 		detail.Odds.RushingTouchdowns == nil || detail.Odds.TeamWins == nil ||
-		detail.Odds.ReceivingYards != nil {
+		detail.Odds.ReceivingYards != nil || detail.Morality == nil {
 		t.Fatal("player detail is missing summary, provider identity, or passing yards")
 	}
 	if detail.Odds.PassingYards.Source != "sportsbook_consensus" ||
 		detail.Odds.PassingYards.CapturedAt != "2026-08-31T01:23:28Z" {
 		t.Fatalf("passing-yards provenance = %#v", detail.Odds.PassingYards)
+	}
+	if detail.Morality.Score != 4 || detail.Morality.SnapshotDate != "2026-08-30" ||
+		!detail.Morality.HigherIsBetter || detail.Morality.ScaleMaximum != 5 {
+		t.Fatalf("morality response = %#v", detail.Morality)
 	}
 }
 
@@ -146,7 +150,8 @@ func TestPlayerDetailHandlesMissingValues(t *testing.T) {
 	decodeResponse(t, recorder, &response)
 	if response.Player.NFLTeam != nil || response.Player.Age != nil || response.Season != nil ||
 		response.Draft.AggregateADP != nil || response.Draft.ECR != nil || response.Draft.Tier != nil ||
-		response.Projections != nil || response.Odds.ReceivingYards != nil || response.WeeklySummary.Average != nil {
+		response.Projections != nil || response.Odds.ReceivingYards != nil || response.Morality != nil ||
+		response.WeeklySummary.Average != nil {
 		t.Fatal("missing optional values should be encoded as null")
 	}
 	if response.Weekly == nil || len(response.Weekly) != 0 {
@@ -513,6 +518,9 @@ func loadAPITestFixture(t *testing.T, db *sql.DB) {
 			(2026, 'sportsbook_consensus', 'rushing_touchdowns', 1, 4.5, '2026-08-31T01:23:28Z');
 		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)
 		VALUES (2026, 'sportsbook_consensus', 'regular_season_wins', 1, 8.5, '2026-08-31T01:23:28Z');
+		INSERT INTO player_morality_scores (
+			player_id, source, score, snapshot_date, imported_at
+		) VALUES (1, 'user_supplied', 4, '2026-08-30', '2026-08-30T20:00:00Z');
 		INSERT INTO drafts (id, sleeper_draft_id, mode, status, created_at, updated_at)
 		VALUES (1, 'fixture-draft', 'live', 'mock', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
 		INSERT INTO draft_picks (

@@ -63,8 +63,11 @@ func TestRebuildUsesEveryApprovedCache(t *testing.T) {
 	runner.MinimumFantasyProsRows = 1
 	runner.MinimumProjectionRows = 1
 	runner.MinimumOddsRows = 1
+	runner.MinimumMoralityRows = 2
 	oddsSnapshot := oddsSnapshotFixture()
 	runner.OddsSnapshot = &oddsSnapshot
+	moralitySnapshot := moralitySnapshotFixture()
+	runner.MoralitySnapshot = &moralitySnapshot
 	runner.Now = func() time.Time { return fetchedAt }
 	blockedClient := &http.Client{Transport: noProviderRequests{t: t}}
 	runner.SleeperClient.HTTPClient = blockedClient
@@ -91,7 +94,8 @@ func TestRebuildUsesEveryApprovedCache(t *testing.T) {
 		"nfl_teams": 32, "players": 4, "player_week_stats": 18,
 		"player_season_stats": 1, "player_adp": 2, "player_rankings": 2,
 		"player_tiers": 2, "player_projections": 2,
-		"odds": 4,
+		"odds":                   4,
+		"player_morality_scores": 2,
 	} {
 		var got int
 		if err := rebuilt.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", table)).Scan(&got); err != nil {

@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. M8.1 adds a committed 2026 sportsbook-consensus snapshot to the live draft, manual fallback, and real-data foundation.
+A personal, local-first fantasy football draft-day dashboard. M8.2 adds a manually supplied subjective score snapshot to the live-draft player inspector alongside the real-data, odds, synchronization, and manual-fallback foundation.
 
 ## Prerequisites
 
@@ -59,6 +59,7 @@ The reference-data build contains:
 - 2026 half-PPR Draft ECR, position rank, overall tier, and expert disagreement fields.
 - 2026 FantasyPros passing, rushing, and receiving yards/touchdown projections.
 - 2026 sportsbook-consensus passing, rushing, and receiving yard/TD lines plus all 32 NFL-team win totals.
+- a source-dated, user-supplied 0–5 morality index for 116 players.
 
 The Sleeper player response is cached under `./data/import-cache/`. Re-running within 24 hours uses that cache instead of repeating Sleeper's large player request. The nflverse stats and DynastyProcess ID crosswalk are also cached there and reused indefinitely because they describe a completed historical season. Aggregate ADP, Draft ECR, and projections have independent response/metadata caches. These directories and SQLite files are gitignored.
 
@@ -72,12 +73,13 @@ go run ./cmd/data load stats --refresh
 go run ./cmd/data load fantasypros
 go run ./cmd/data load projections
 go run ./cmd/data load odds
+go run ./cmd/data load morality
 go run ./cmd/data build
 ```
 
-All loaders are idempotent. `build` currently runs teams, players, stats, FantasyPros draft data, projections, then odds. `load stats` uses the validated local cache when present; add `--refresh` only when you deliberately want to download and validate both public provider files again. FantasyPros loads are cache-only, and odds loads use the embedded snapshot; `build` and `rebuild` therefore never call FantasyPros or a sportsbook. Player and stats downloads retain the cache behavior described above. Each loader validates and transactionally replaces its own rows.
+All loaders are idempotent. `build` currently runs teams, players, stats, FantasyPros draft data, projections, odds, then morality scores. `load stats` uses the validated local cache when present; add `--refresh` only when you deliberately want to download and validate both public provider files again. FantasyPros loads are cache-only, while odds and morality loads use embedded snapshots; `build` and `rebuild` therefore never call FantasyPros, a sportsbook, or an arrest-record source. Player and stats downloads retain the cache behavior described above. Each loader validates and transactionally replaces its own rows.
 
-`rebuild --confirm` validates the complete replacement before installing it: expected row coverage, all 18 historical weeks, season/weekly aggregate agreement, exact provider-ID uniqueness, source/season constraints, position-appropriate projections and odds, UTC RFC3339 timestamps, empty draft-history tables, foreign keys, and SQLite integrity. A failed build or audit leaves the current database and its backup intact.
+`rebuild --confirm` validates the complete replacement before installing it: expected row coverage, all 18 historical weeks, season/weekly aggregate agreement, exact provider-ID uniqueness, source/season constraints, position-appropriate projections and odds, the exact morality-snapshot count and score range, UTC RFC3339 timestamps, empty draft-history tables, foreign keys, and SQLite integrity. A failed build or audit leaves the current database and its backup intact.
 
 The stats import uses public downloads and needs no API key:
 
@@ -91,6 +93,8 @@ Draft rankings come from two all-position, half-PPR requests to the official Fan
 Projections come from one all-position FantasyPros preseason request. The API labels this response `STD` even when `HALF` is requested; the imported passing/rushing/receiving yards and touchdowns are volume values and do not depend on scoring format. They are joined only through the exact FantasyPros IDs already stored on players. Forecasts live in `player_projections`, separate from historical stats and sportsbook lines.
 
 Odds come from the seven committed CSVs in `internal/odds/`, captured at `2026-08-31T01:23:28Z`. The app imports the supplied `Consensus_Line` and `Consensus_Win_Total` values; it does not scrape, call an API, or calculate consensus. Players match only by exact full name plus NFL-team abbreviation, and win totals match exact NFL-team names. Blank, unmatched, and position-invalid rows are reported rather than guessed.
+
+The morality index comes from the committed CSV in `internal/morality/`, dated `2026-08-30`. Its 116 integer scores match players only by exact Sleeper ID. This is an opaque, manually supplied subjective label: 0 is lowest and 5 is highest. The app does not calculate, independently verify, or treat it as an objective measure of conduct. Players outside the supplied snapshot remain unscored.
 
 `DB_PATH` changes the database location from the default `./data/draft.db`. The import cache and backups live beside the configured database.
 
@@ -125,7 +129,7 @@ npm run dev -- --host 0.0.0.0
 
 On the second computer, open `http://<laptop-LAN-IP>:5173`. Both browsers read the same SQLite draft state through the same backend poller; filters and selected-player state remain local to each browser. Port 5173 must be allowed through the laptop firewall. This development server has no authentication, so expose it only on a trusted local network and do not port-forward it to the internet.
 
-## Current M8.1 behavior
+## Current M8.2 behavior
 
 Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
 
@@ -139,7 +143,9 @@ With a Sleeper draft ID saved in Admin, selecting an available player exposes a 
 
 FantasyPros projections and sportsbook consensus remain visibly separate; neither is presented as historical performance.
 
-The prior clean rebuild was verified with 32 NFL teams, 3,045 active fantasy-position players, 6,033 weekly rows across all 18 weeks, 604 derived season rows, 314 Aggregate ADP rows, 750 ECR/tier rows, and 510 projection rows. M8.1 adds 296 validated consensus rows: 264 player markets and 32 team win totals. The CSVs contain 36 rows without consensus, five unmatched player-market rows, and one position mismatch; these remain absent. SQLite integrity and foreign-key checks pass.
+For players included in the supplied snapshot, the Draft Day inspector shows the user-defined morality index immediately left of FantasyPros tier. Missing scores render as `—`; the score does not affect availability, filtering, rankings, or recommendations.
+
+The prior clean rebuild was verified with 32 NFL teams, 3,045 active fantasy-position players, 6,033 weekly rows across all 18 weeks, 604 derived season rows, 314 Aggregate ADP rows, 750 ECR/tier rows, and 510 projection rows. M8.1 adds 296 validated consensus rows: 264 player markets and 32 team win totals. The odds CSVs contain 36 rows without consensus, five unmatched player-market rows, and one position mismatch; these remain absent. M8.2 adds 116 exactly matched morality-score rows. SQLite integrity and foreign-key checks pass.
 
 Admin stores Sleeper username, league ID, draft ID, polling toggle, and polling interval in SQLite. Player-pool imports are terminal commands rather than Admin actions. Sleeper's public API requires no credential, so no token/API-key/password field exists.
 
@@ -200,6 +206,9 @@ sqlite3 -header -box data/draft.db \
 
 sqlite3 -header -box data/draft.db \
   "SELECT market, COUNT(*) AS rows, ROUND(MIN(line), 1) AS minimum, ROUND(MAX(line), 1) AS maximum, MAX(captured_at) AS captured_at FROM odds WHERE season = 2026 AND source = 'sportsbook_consensus' GROUP BY market ORDER BY market;"
+
+sqlite3 -header -box data/draft.db \
+  "SELECT p.first_name || ' ' || p.last_name AS player, m.score, m.snapshot_date FROM player_morality_scores m JOIN players p ON p.id = m.player_id ORDER BY m.score, p.last_name LIMIT 20;"
 
 sqlite3 -header -box data/draft.db \
   "SELECT d.sleeper_draft_id, dp.pick_number, dp.sleeper_player_id, dp.source, dp.player_first_name, dp.player_last_name FROM draft_picks dp JOIN drafts d ON d.id = dp.draft_id ORDER BY d.id, dp.pick_number;"

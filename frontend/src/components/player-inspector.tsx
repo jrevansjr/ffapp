@@ -197,9 +197,23 @@ export default function PlayerInspector({
               {player.first_name} {player.last_name}
             </h2>
           </div>
-          <div className="rounded-md bg-muted px-3 py-2 text-center">
-            <p className="text-xs text-muted-foreground">FantasyPros tier</p>
-            <p className="font-semibold tabular-nums">{formatWhole(detail.data.draft.tier)}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div
+              className="min-w-28 rounded-md bg-muted px-3 py-2 text-center"
+              title="User-defined subjective score from the August 30, 2026 snapshot; 5 is best."
+            >
+              <p className="text-xs text-muted-foreground">Morality index</p>
+              <p className="font-semibold tabular-nums">
+                {detail.data.morality === null
+                  ? "—"
+                  : `${detail.data.morality.score} / ${detail.data.morality.scale_maximum}`}
+              </p>
+              <span className="sr-only">User-defined subjective score; higher is better.</span>
+            </div>
+            <div className="min-w-28 rounded-md bg-muted px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">FantasyPros tier</p>
+              <p className="font-semibold tabular-nums">{formatWhole(detail.data.draft.tier)}</p>
+            </div>
           </div>
         </div>
 

@@ -72,7 +72,7 @@ Keep these exact commands accurate in `README.md`. Fixed ports: frontend **5173*
 
 **Backend:** Go, `net/http`, `chi` for routing, standard `database/sql` with `modernc.org/sqlite` (pure Go — the build must never require cgo), handwritten SQL, standard `encoding/json`, standard `net/http` client for Sleeper. No ORM, no `sqlc` initially — the query surface is small and readability wins; revisit only if query maintenance becomes painful.
 
-**Database:** a single SQLite file at `DB_PATH`. It durably stores players, historical stats, ADP, expert rankings, tiers, projections, odds, settings, and draft/pick history so nothing must be re-fetched on every start. Backing up the database = copying the file. `data/` is gitignored.
+**Database:** a single SQLite file at `DB_PATH`. It durably stores players, historical stats, ADP, expert rankings, tiers, projections, odds, user-supplied morality scores, settings, and draft/pick history so nothing must be re-fetched on every start. Backing up the database = copying the file. `data/` is gitignored.
 
 **Migrations:** plain SQL files in `backend/migrations/`, embedded with `embed.FS` and applied automatically at server startup via the `goose` library (`sqlite3` dialect). No migration CLI to install, no separate migrate step.
 
@@ -221,6 +221,7 @@ Extract a component when it's reused, a page becomes hard to read, or a distinct
 - **tier** = the overall tier supplied with FantasyPros Draft ECR — never an app-generated recommendation.
 - **projection** = a provider forecast, currently FantasyPros 2026 volume stats — never label it as a sportsbook line or historical result.
 - **Sportsbook consensus** = the externally supplied `Consensus_Line` / `Consensus_Win_Total` snapshot — the app imports it and never claims to calculate its own consensus.
+- **morality index** = a manually supplied subjective 0–5 label where 5 is best — never an app recommendation or objective measure of conduct.
 
 **Data conventions:** ISO-8601 UTC timestamps in JSON and in the DB (per §4); integer seasons (`2025`) and weeks (`1`); numbers are JSON numbers (only inherently string-like external IDs are strings). Missing values render as `—`, never as `0`, and sort after real values. Season-specific values live in season/source tables, never as `2025_*` columns on `players`.
 

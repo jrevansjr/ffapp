@@ -1,0 +1,5 @@
+{
+  "source": "user_supplied",
+  "snapshot_date": "2026-08-30",
+  "description": "User-supplied subjective 0-5 morality index. Higher scores are more favorable; the application does not calculate or independently verify them."
+}

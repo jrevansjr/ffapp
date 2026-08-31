@@ -11,6 +11,7 @@ import (
 
 	"github.com/jrevansjr/ffapp/backend/internal/database"
 	"github.com/jrevansjr/ffapp/backend/internal/fantasypros"
+	"github.com/jrevansjr/ffapp/backend/internal/morality"
 	"github.com/jrevansjr/ffapp/backend/internal/nflverse"
 	"github.com/jrevansjr/ffapp/backend/internal/odds"
 	"github.com/jrevansjr/ffapp/backend/internal/sleeper"
@@ -30,7 +31,9 @@ type Runner struct {
 	MinimumFantasyProsRows int
 	MinimumProjectionRows  int
 	MinimumOddsRows        int
+	MinimumMoralityRows    int
 	OddsSnapshot           *odds.Snapshot
+	MoralitySnapshot       *morality.Snapshot
 	Now                    func() time.Time
 	Output                 io.Writer
 }
@@ -53,6 +56,7 @@ func NewRunner(dbPath string, output io.Writer) *Runner {
 		MinimumFantasyProsRows: minimumRealFantasyProsRows,
 		MinimumProjectionRows:  minimumRealProjectionRows,
 		MinimumOddsRows:        minimumRealOddsRows,
+		MinimumMoralityRows:    minimumRealMoralityRows,
 		Now:                    time.Now,
 		Output:                 output,
 	}
@@ -86,8 +90,10 @@ func (runner *Runner) Load(ctx context.Context, dataset string, refresh bool) er
 		return runner.loadProjections(ctx, db)
 	case "odds":
 		return runner.loadOdds(ctx, db)
+	case "morality":
+		return runner.loadMorality(ctx, db)
 	default:
-		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, fantasypros, projections, and odds", dataset)
+		return fmt.Errorf("unknown dataset %q; supported datasets are teams, players, stats, fantasypros, projections, odds, and morality", dataset)
 	}
 }
 
@@ -118,7 +124,40 @@ func (runner *Runner) buildAt(ctx context.Context, dbPath string) error {
 	if err := runner.loadProjections(ctx, db); err != nil {
 		return err
 	}
-	return runner.loadOdds(ctx, db)
+	if err := runner.loadOdds(ctx, db); err != nil {
+		return err
+	}
+	return runner.loadMorality(ctx, db)
+}
+
+func (runner *Runner) loadMorality(ctx context.Context, db *sql.DB) error {
+	var snapshot morality.Snapshot
+	if runner.MoralitySnapshot != nil {
+		snapshot = *runner.MoralitySnapshot
+	} else {
+		var err error
+		snapshot, err = morality.LoadSnapshot()
+		if err != nil {
+			return err
+		}
+	}
+	summary, err := loadMoralityWithThreshold(
+		ctx, db, snapshot, runner.Now().UTC(), runner.MinimumMoralityRows,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(
+		runner.Output,
+		"morality: source=%s source_rows=%d matched=%d inserted=%d snapshot_date=%s imported_at=%s\n",
+		summary.Source,
+		summary.SourceRows,
+		summary.MatchedRows,
+		summary.InsertedRows,
+		summary.SnapshotDate,
+		summary.ImportedAt,
+	)
+	return nil
 }
 
 func (runner *Runner) loadOdds(ctx context.Context, db *sql.DB) error {

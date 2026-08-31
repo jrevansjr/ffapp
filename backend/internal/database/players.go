@@ -172,6 +172,14 @@ type PlayerOdds struct {
 	TeamWins            *OddsLine
 }
 
+// PlayerMoralityScore is one user-supplied subjective score and its provenance.
+type PlayerMoralityScore struct {
+	Score        int
+	Source       string
+	SnapshotDate string
+	ImportedAt   string
+}
+
 // PlayerDetail combines normalized player data for the detail API response.
 type PlayerDetail struct {
 	Player      PlayerProfile
@@ -180,6 +188,7 @@ type PlayerDetail struct {
 	Draft       PlayerDraftData
 	Projections *PlayerProjections
 	Odds        PlayerOdds
+	Morality    *PlayerMoralityScore
 	Weekly      []PlayerWeekStats
 }
 
@@ -416,10 +425,29 @@ func GetPlayer(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, e
 	if detail.Odds, err = loadPlayerOdds(ctx, db, playerID, detail.Player.NFLTeam); err != nil {
 		return PlayerDetail{}, err
 	}
+	if detail.Morality, err = loadPlayerMorality(ctx, db, playerID); err != nil {
+		return PlayerDetail{}, err
+	}
 	if detail.Weekly, err = loadPlayerWeeks(ctx, db, playerID); err != nil {
 		return PlayerDetail{}, err
 	}
 	return detail, nil
+}
+
+func loadPlayerMorality(ctx context.Context, db *sql.DB, playerID int64) (*PlayerMoralityScore, error) {
+	var score PlayerMoralityScore
+	err := db.QueryRowContext(ctx, `
+		SELECT score, source, snapshot_date, imported_at
+		FROM player_morality_scores
+		WHERE player_id = ? AND source = 'user_supplied'
+	`, playerID).Scan(&score.Score, &score.Source, &score.SnapshotDate, &score.ImportedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get player morality score: %w", err)
+	}
+	return &score, nil
 }
 
 func loadPlayerProjections(ctx context.Context, db *sql.DB, playerID int64) (*PlayerProjections, error) {

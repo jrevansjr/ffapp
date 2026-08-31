@@ -182,6 +182,16 @@ export interface PlayerDetailOdds {
   team_wins: OddsLine | null
 }
 
+/** PlayerMorality is a subjective, user-supplied score rather than an app recommendation. */
+export interface PlayerMorality {
+  score: number
+  source: string
+  snapshot_date: string
+  scale_minimum: number
+  scale_maximum: number
+  higher_is_better: boolean
+}
+
 /** PlayerWeekStats is one persisted game-week used by the inspector charts. */
 export interface PlayerWeekStats {
   season: number
@@ -211,6 +221,7 @@ export interface PlayerDetail {
   draft: PlayerDraftData
   projections: PlayerProjections | null
   odds: PlayerDetailOdds
+  morality: PlayerMorality | null
   weekly: PlayerWeekStats[]
   weekly_summary: WeeklySummary
 }

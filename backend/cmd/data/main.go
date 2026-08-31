@@ -43,12 +43,12 @@ func run(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "load":
 		if len(args) < 2 || len(args) > 3 {
-			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats|fantasypros|projections|odds [--refresh]")
+			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats|fantasypros|projections|odds|morality [--refresh]")
 		}
 		dataset := args[1]
 		refresh := len(args) == 3 && args[2] == "--refresh"
 		if len(args) == 3 && !refresh {
-			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats|fantasypros|projections|odds [--refresh]")
+			return fmt.Errorf("usage: go run ./cmd/data load teams|players|stats|fantasypros|projections|odds|morality [--refresh]")
 		}
 		if refresh && dataset != "stats" {
 			return fmt.Errorf("--refresh is supported only by load stats")
@@ -91,6 +91,6 @@ func run(ctx context.Context, args []string) error {
 
 func usageError() error {
 	return fmt.Errorf(
-		"usage: go run ./cmd/data load teams|players|stats|fantasypros|projections|odds [--refresh] | refresh fantasypros adp|ecr|projections | build | rebuild --confirm",
+		"usage: go run ./cmd/data load teams|players|stats|fantasypros|projections|odds|morality [--refresh] | refresh fantasypros adp|ecr|projections | build | rebuild --confirm",
 	)
 }

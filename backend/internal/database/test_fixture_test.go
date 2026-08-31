@@ -56,6 +56,9 @@ func loadPlayerQueryFixture(t *testing.T, db *sql.DB) {
 			(2026, 'sportsbook_consensus', 'rushing_touchdowns', 1, 4.5, '2026-08-31T01:23:28Z');
 		INSERT INTO odds (season, source, market, nfl_team_id, line, captured_at)
 		VALUES (2026, 'sportsbook_consensus', 'regular_season_wins', 1, 8.5, '2026-08-31T01:23:28Z');
+		INSERT INTO player_morality_scores (
+			player_id, source, score, snapshot_date, imported_at
+		) VALUES (1, 'user_supplied', 4, '2026-08-30', '2026-08-30T20:00:00Z');
 
 		INSERT INTO drafts (
 			id, sleeper_draft_id, mode, status, created_at, updated_at

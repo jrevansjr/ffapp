@@ -88,4 +88,7 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 		detail.Odds.TeamWins == nil || detail.Odds.ReceivingYards != nil {
 		t.Fatalf("detail odds = %#v, want QB markets and team wins only", detail.Odds)
 	}
+	if detail.Morality == nil || detail.Morality.Score != 4 || detail.Morality.SnapshotDate != "2026-08-30" {
+		t.Fatalf("detail morality = %#v, want supplied score", detail.Morality)
+	}
 }

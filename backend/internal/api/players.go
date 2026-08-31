@@ -138,6 +138,15 @@ type playerOddsResponse struct {
 	TeamWins            *oddsLineResponse `json:"team_wins"`
 }
 
+type playerMoralityResponse struct {
+	Score          int    `json:"score"`
+	Source         string `json:"source"`
+	SnapshotDate   string `json:"snapshot_date"`
+	ScaleMinimum   int    `json:"scale_minimum"`
+	ScaleMaximum   int    `json:"scale_maximum"`
+	HigherIsBetter bool   `json:"higher_is_better"`
+}
+
 type weeklyStatsResponse struct {
 	Season               int     `json:"season"`
 	Week                 int     `json:"week"`
@@ -165,6 +174,7 @@ type playerDetailResponse struct {
 	Draft         playerDraftResponse        `json:"draft"`
 	Projections   *playerProjectionsResponse `json:"projections"`
 	Odds          playerOddsResponse         `json:"odds"`
+	Morality      *playerMoralityResponse    `json:"morality"`
 	Weekly        []weeklyStatsResponse      `json:"weekly"`
 	WeeklySummary weeklySummaryResponse      `json:"weekly_summary"`
 }
@@ -317,8 +327,23 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 		Draft:         newPlayerDraftResponse(detail.Draft),
 		Projections:   newPlayerProjectionsResponse(detail.Projections),
 		Odds:          newPlayerOddsResponse(detail.Odds),
+		Morality:      newPlayerMoralityResponse(detail.Morality),
 		Weekly:        weekly,
 		WeeklySummary: summarize(points),
+	}
+}
+
+func newPlayerMoralityResponse(score *database.PlayerMoralityScore) *playerMoralityResponse {
+	if score == nil {
+		return nil
+	}
+	return &playerMoralityResponse{
+		Score:          score.Score,
+		Source:         score.Source,
+		SnapshotDate:   score.SnapshotDate,
+		ScaleMinimum:   0,
+		ScaleMaximum:   5,
+		HigherIsBetter: true,
 	}
 }
 

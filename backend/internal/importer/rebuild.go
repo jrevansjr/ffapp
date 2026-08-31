@@ -28,6 +28,7 @@ type validationMinimums struct {
 	FantasyPros int
 	Projections int
 	Odds        int
+	Morality    int
 }
 
 // Rebuild constructs and validates the complete real-data database before
@@ -84,6 +85,7 @@ func (runner *Runner) validationMinimums() validationMinimums {
 		FantasyPros: runner.MinimumFantasyProsRows,
 		Projections: runner.MinimumProjectionRows,
 		Odds:        runner.MinimumOddsRows,
+		Morality:    runner.MinimumMoralityRows,
 	}
 }
 
@@ -398,6 +400,34 @@ func validateRealDataDatabase(dbPath string, minimums validationMinimums) error 
 	if invalidOdds != 0 {
 		return fmt.Errorf("found %d odds rows outside the M8.1 contract", invalidOdds)
 	}
+	var moralityCount int
+	if err := db.QueryRow(`
+		SELECT COUNT(*) FROM player_morality_scores
+		WHERE source = 'user_supplied'
+	`).Scan(&moralityCount); err != nil {
+		return fmt.Errorf("count user-supplied morality scores: %w", err)
+	}
+	if moralityCount != minimums.Morality {
+		return fmt.Errorf(
+			"morality score count is %d; expected exactly %d",
+			moralityCount,
+			minimums.Morality,
+		)
+	}
+	var invalidMorality int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM player_morality_scores
+		WHERE source != 'user_supplied'
+			OR score NOT BETWEEN 0 AND 5
+			OR snapshot_date != '2026-08-30'
+			OR imported_at = ''
+	`).Scan(&invalidMorality); err != nil {
+		return fmt.Errorf("validate user-supplied morality scores: %w", err)
+	}
+	if invalidMorality != 0 {
+		return fmt.Errorf("found %d morality rows outside the M8.2 contract", invalidMorality)
+	}
 	for _, table := range []string{
 		"drafts",
 		"draft_picks",
@@ -468,6 +498,7 @@ func validateReferenceTimestamps(db *sql.DB) error {
 		UNION ALL SELECT 'player_tiers.updated_at', updated_at FROM player_tiers
 		UNION ALL SELECT 'player_projections.updated_at', updated_at FROM player_projections
 		UNION ALL SELECT 'odds.captured_at', captured_at FROM odds
+		UNION ALL SELECT 'player_morality_scores.imported_at', imported_at FROM player_morality_scores
 	`)
 	if err != nil {
 		return fmt.Errorf("load reference timestamps: %w", err)
