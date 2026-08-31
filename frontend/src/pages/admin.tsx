@@ -6,7 +6,7 @@ import type { Settings, SettingsUpdate } from "@/lib/types"
 
 const settingsQueryKey = ["settings"] as const
 const inputClassName =
-  "mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
+  "mt-1.5 w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 aria-invalid:border-red-400 aria-invalid:ring-red-100"
 
 interface SettingsFormState {
   sleeperUsername: string
@@ -75,7 +75,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
       interval < 500 ||
       interval > 60_000
     ) {
-      setValidationError("Polling interval must be a whole number between 500 and 60000.")
+      setValidationError("Polling interval must be a whole number between 500 and 60,000 ms.")
       saveSettings.reset()
       return
     }
@@ -130,6 +130,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
           <label className="block text-sm font-medium" htmlFor="polling-interval">
             Polling interval (ms)
             <input
+              aria-describedby="polling-interval-help"
+              aria-invalid={validationError !== null}
               className={inputClassName}
               id="polling-interval"
               inputMode="numeric"
@@ -140,6 +142,9 @@ function SettingsForm({ settings }: { settings: Settings }) {
               type="number"
               value={form.pollingInterval}
             />
+            <span className="mt-1 block text-xs font-normal text-muted-foreground" id="polling-interval-help">
+              Allowed range: 500–60,000 ms.
+            </span>
           </label>
         </div>
 
@@ -164,7 +169,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
         </label>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-5">
         <button
           className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={saveSettings.isPending}
@@ -172,24 +177,28 @@ function SettingsForm({ settings }: { settings: Settings }) {
         >
           {saveSettings.isPending ? "Saving…" : "Save Settings"}
         </button>
-        <span className="text-xs text-muted-foreground">
-          Last saved {formatTimestamp(settings.updated_at)}
-        </span>
+        <div className="text-xs text-muted-foreground">
+          <p>Settings last saved {formatTimestamp(settings.updated_at)}</p>
+          <p>
+            Player data last imported{" "}
+            {settings.players_synced_at ? formatTimestamp(settings.players_synced_at) : "—"}
+          </p>
+        </div>
       </div>
 
-      <div aria-live="polite" className="min-h-5 text-sm">
+      <div aria-live="polite" className="min-h-10 text-sm">
         {validationError && (
-          <p className="text-red-700" role="alert">
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800" role="alert">
             {validationError}
           </p>
         )}
         {saveSettings.isError && (
-          <p className="text-red-700" role="alert">
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800" role="alert">
             {errorMessage(saveSettings.error, "Could not save settings.")}
           </p>
         )}
         {saveSettings.isSuccess && (
-          <p className="text-emerald-700" role="status">
+          <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800" role="status">
             Settings saved.
           </p>
         )}
@@ -203,6 +212,7 @@ export default function AdminPage() {
   const settings = useQuery({
     queryKey: settingsQueryKey,
     queryFn: getSettings,
+    retry: false,
   })
 
   return (
@@ -215,7 +225,7 @@ export default function AdminPage() {
       </p>
 
       {settings.isPending && (
-        <p className="mt-6 text-sm text-muted-foreground" role="status">
+        <p className="mt-6 max-w-2xl rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground" role="status">
           Loading settings…
         </p>
       )}

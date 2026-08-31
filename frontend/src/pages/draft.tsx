@@ -11,7 +11,8 @@ import {
   markPlayerDrafted,
   undoManualPick,
 } from "@/lib/api"
-import type { DraftPick } from "@/lib/types"
+import type { DraftPick, DraftState } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 const positions = ["QB", "RB", "WR", "TE"]
 const controlClassName =
@@ -30,7 +31,54 @@ function errorMessage(error: unknown, fallback: string): string {
 
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp)
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString()
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+}
+
+function draftStatusPresentation(state: DraftState): {
+  badgeClassName: string
+  label: string
+  message: string
+  panelClassName: string
+} {
+  switch (state.status) {
+    case "current":
+      return {
+        badgeClassName: "bg-emerald-100 text-emerald-900",
+        label: "Live sync",
+        message: "Sleeper picks are current.",
+        panelClassName: "border-emerald-200 bg-emerald-50/40",
+      }
+    case "syncing":
+      return {
+        badgeClassName: "bg-blue-100 text-blue-900",
+        label: "Syncing",
+        message: "Waiting for the first successful Sleeper sync.",
+        panelClassName: "border-blue-200 bg-blue-50/40",
+      }
+    case "stale":
+      return {
+        badgeClassName: "bg-amber-100 text-amber-950",
+        label: "Stale snapshot",
+        message: "Sleeper is unavailable; showing the last persisted draft state.",
+        panelClassName: "border-amber-300 bg-amber-50/50",
+      }
+    case "disabled":
+      return {
+        badgeClassName: "bg-neutral-200 text-neutral-900",
+        label: "Polling paused",
+        message: "Showing persisted picks. Manual draft actions remain available.",
+        panelClassName: "border-neutral-300 bg-neutral-50",
+      }
+    default:
+      return {
+        badgeClassName: "bg-neutral-200 text-neutral-900",
+        label: "Not configured",
+        message: "Save a Sleeper draft ID to start tracking picks.",
+        panelClassName: "border-neutral-300 bg-neutral-50",
+      }
+  }
 }
 
 function unknownPickLabel(pick: DraftPick): string {
@@ -94,6 +142,10 @@ export default function DraftPage() {
     () => displayedPlayers.filter((player) => !player.is_taken),
     [displayedPlayers],
   )
+  const inspectedPlayerID =
+    selectedPlayerID !== null && availablePlayers.some((player) => player.id === selectedPlayerID)
+      ? selectedPlayerID
+      : null
   const tiers = useMemo(
     () =>
       Array.from(
@@ -123,6 +175,7 @@ export default function DraftPage() {
   const unknownPicks =
     draftState.data?.picks.filter((pick) => unknownSleeperIDs.has(pick.sleeper_player_id)) ?? []
   const manualPicks = draftState.data?.picks.filter((pick) => pick.source === "manual") ?? []
+  const draftStatus = draftState.data ? draftStatusPresentation(draftState.data) : null
 
   function selectPlayer(playerID: number) {
     markDrafted.reset()
@@ -147,7 +200,12 @@ export default function DraftPage() {
         )}
       </div>
 
-      <div className="mt-5 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+      <div
+        className={cn(
+          "mt-5 rounded-lg border bg-card px-4 py-3 text-sm",
+          draftStatus?.panelClassName ?? "border-border",
+        )}
+      >
         {draftState.isPending && (
           <p className="text-muted-foreground" role="status">
             Loading draft configuration…
@@ -170,9 +228,14 @@ export default function DraftPage() {
         {draftState.data?.status === "not_configured" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-medium">No active Sleeper draft configured.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", draftStatus?.badgeClassName)}>
+                  {draftStatus?.label}
+                </span>
+                <p className="font-medium">No active Sleeper draft configured</p>
+              </div>
               <p className="mt-1 text-muted-foreground">
-                All imported players remain available until a draft ID is saved in Admin.
+                {draftStatus?.message} All imported players remain available.
               </p>
             </div>
             <Link
@@ -187,31 +250,18 @@ export default function DraftPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  draftState.data.stale
-                    ? "bg-amber-100 text-amber-900"
-                    : draftState.data.status === "current"
-                      ? "bg-emerald-100 text-emerald-900"
-                      : "bg-muted"
-                }`}
+                className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-semibold",
+                  draftStatus?.badgeClassName,
+                )}
               >
-                {draftState.data.status === "current"
-                  ? "Live"
-                  : draftState.data.status === "stale"
-                    ? "Stale"
-                    : draftState.data.status === "syncing"
-                      ? "Syncing"
-                      : "Polling off"}
+                {draftStatus?.label}
               </span>
               <div>
-                <p>
+                <p className="font-medium">
                   Draft <code>{draftState.data.draft_id}</code>
                 </p>
-                {draftState.data.message && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {draftState.data.message}
-                  </p>
-                )}
+                <p className="mt-0.5 text-xs text-muted-foreground">{draftStatus?.message}</p>
               </div>
             </div>
             <div className="text-right text-xs text-muted-foreground">
@@ -225,7 +275,7 @@ export default function DraftPage() {
           </div>
         )}
         {draftState.data && draftState.data.unknown_sleeper_player_ids.length > 0 && (
-          <div className="mt-2 text-xs text-amber-800">
+          <div className="mt-3 border-t border-amber-200 pt-3 text-xs text-amber-900">
             <p>
               {draftState.data.unknown_sleeper_player_ids.length} pick
               {draftState.data.unknown_sleeper_player_ids.length === 1 ? " has" : "s have"} an
@@ -275,9 +325,12 @@ export default function DraftPage() {
           </div>
         )}
         {draftState.isError && draftState.data && (
-          <p className="mt-2 text-xs text-red-700" role="alert">
-            Could not refresh local draft state; showing the last browser snapshot.
-          </p>
+          <div className="mt-3 border-t border-red-200 pt-3 text-xs text-red-800" role="alert">
+            <p className="font-semibold">Browser refresh failed</p>
+            <p className="mt-0.5">
+              The local API could not be reached; showing the last snapshot held by this browser.
+            </p>
+          </div>
         )}
       </div>
 
@@ -428,7 +481,7 @@ export default function DraftPage() {
                 : null
             }
             onMarkDrafted={(playerID) => markDrafted.mutate(playerID)}
-            playerID={selectedPlayerID}
+            playerID={inspectedPlayerID}
           />
         </div>
       )}

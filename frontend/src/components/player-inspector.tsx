@@ -25,20 +25,33 @@ function usageChart(detail: PlayerDetail): { title: string; series: WeeklySeries
     case "QB":
       return {
         title: "Passing Yards by Week",
-        series: [{ dataKey: "passing_yards", label: "Passing yards", color: "#0f766e" }],
+        series: [
+          { dataKey: "passing_yards", label: "Passing yards", color: "#0f766e", unit: "Yards" },
+        ],
       }
     case "RB":
       return {
         title: "Weekly Opportunity",
         series: [
-          { dataKey: "rushing_attempts", label: "Rush attempts", color: "#0f766e" },
-          { dataKey: "targets", label: "Targets", color: "#c2410c", yAxis: "right" },
+          {
+            dataKey: "rushing_attempts",
+            label: "Rush attempts",
+            color: "#0f766e",
+            unit: "Attempts",
+          },
+          {
+            dataKey: "targets",
+            label: "Targets",
+            color: "#c2410c",
+            unit: "Targets",
+            yAxis: "right",
+          },
         ],
       }
     default:
       return {
         title: "Targets by Week",
-        series: [{ dataKey: "targets", label: "Targets", color: "#0f766e" }],
+        series: [{ dataKey: "targets", label: "Targets", color: "#0f766e", unit: "Targets" }],
       }
   }
 }
@@ -186,7 +199,10 @@ export default function PlayerInspector({
   const oddsSource = oddsProvenance(detail.data)
 
   return (
-    <aside className="space-y-4 xl:sticky xl:top-4" aria-labelledby="inspector-heading">
+    <aside
+      className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1"
+      aria-labelledby="inspector-heading"
+    >
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -200,7 +216,11 @@ export default function PlayerInspector({
           <div className="grid grid-cols-2 gap-2">
             <div
               className="min-w-28 rounded-md bg-muted px-3 py-2 text-center"
-              title="User-defined subjective score from the August 30, 2026 snapshot; 5 is best."
+              title={
+                detail.data.morality
+                  ? `User-defined subjective score from the ${detail.data.morality.snapshot_date} snapshot; higher is better.`
+                  : "No user-defined score is available for this player."
+              }
             >
               <p className="text-xs text-muted-foreground">Morality index</p>
               <p className="font-semibold tabular-nums">
@@ -266,6 +286,35 @@ export default function PlayerInspector({
         </dl>
       </section>
 
+      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="projection-heading">
+        <h3 className="text-sm font-semibold" id="projection-heading">
+          2026 FantasyPros Projections
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Preseason forecasts, kept separate from historical results and sportsbook odds.
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {projectionMetrics(detail.data).map((metric) => (
+            <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
+          ))}
+        </dl>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="odds-heading">
+        <h3 className="text-sm font-semibold" id="odds-heading">
+          2026 Sportsbook Consensus
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Supplied season lines, kept separate from FantasyPros projections.
+          {oddsSource && ` Captured ${formatCapturedAt(oddsSource.captured_at)}.`}
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {oddsMetrics(detail.data).map((metric) => (
+            <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
+          ))}
+        </dl>
+      </section>
+
       <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="weekly-summary-heading">
         <h3 className="text-sm font-semibold" id="weekly-summary-heading">
           2025 Performance
@@ -298,7 +347,12 @@ export default function PlayerInspector({
             average={detail.data.weekly_summary.average}
             data={detail.data.weekly}
             series={[
-              { dataKey: "fantasy_points_half_ppr", label: "Fantasy points", color: "#1d4ed8" },
+              {
+                dataKey: "fantasy_points_half_ppr",
+                label: "Fantasy points",
+                color: "#2563eb",
+                unit: "Points",
+              },
             ]}
             title="Fantasy Points by Week"
           />
@@ -306,34 +360,6 @@ export default function PlayerInspector({
         </div>
       )}
 
-      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="projection-heading">
-        <h3 className="text-sm font-semibold" id="projection-heading">
-          2026 FantasyPros Projections
-        </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Preseason forecasts, kept separate from historical results and sportsbook odds.
-        </p>
-        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {projectionMetrics(detail.data).map((metric) => (
-            <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
-          ))}
-        </dl>
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="odds-heading">
-        <h3 className="text-sm font-semibold" id="odds-heading">
-          2026 Sportsbook Consensus
-        </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Supplied season lines, kept separate from FantasyPros projections.
-          {oddsSource && ` Captured ${formatCapturedAt(oddsSource.captured_at)}.`}
-        </p>
-        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {oddsMetrics(detail.data).map((metric) => (
-            <Metric key={metric.label} label={metric.label} value={formatDecimal(metric.value)} />
-          ))}
-        </dl>
-      </section>
     </aside>
   )
 }

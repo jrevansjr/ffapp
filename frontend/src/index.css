@@ -33,10 +33,18 @@
     @apply m-0 min-w-80 bg-background text-foreground antialiased;
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   button,
   input,
   select {
     font: inherit;
   }
-}
 
+  :where(a, button, input, select):focus-visible {
+    outline: 2px solid oklch(0.439 0 0);
+    outline-offset: 2px;
+  }
+}

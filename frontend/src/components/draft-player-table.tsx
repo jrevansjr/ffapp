@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 
 interface DraftColumnMeta {
   numeric?: boolean
+  sticky?: boolean
 }
 
 const draftTableFeatures = tableFeatures({
@@ -37,6 +38,7 @@ const columns = columnHelper.columns([
     header: "Name",
     sortFn: "text",
     sortDescFirst: false,
+    meta: { sticky: true },
   }),
   columnHelper.accessor("position", {
     header: "Pos",
@@ -127,8 +129,11 @@ export default function DraftPlayerTable({
   }
 
   return (
-    <div className="max-h-[calc(100vh-21rem)] min-h-80 overflow-auto rounded-lg border border-border bg-card">
-      <table className="min-w-[720px] w-full border-collapse text-left text-xs">
+    <div className="max-h-[calc(100vh-20rem)] min-h-80 overflow-auto rounded-lg border border-border bg-card">
+      <table className="w-full min-w-[680px] border-collapse text-left text-xs">
+        <caption className="sr-only">
+          Available fantasy football players. Select a row to open its player inspector.
+        </caption>
         <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
           {playerTable.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
@@ -141,6 +146,7 @@ export default function DraftPlayerTable({
                     className={cn(
                       "border-b border-border px-3 py-2 font-semibold",
                       meta?.numeric && "text-right",
+                      meta?.sticky && "sticky left-0 z-20 min-w-40 bg-muted shadow-[1px_0_0_0_var(--border)]",
                     )}
                     key={header.id}
                     scope="col"
@@ -179,7 +185,7 @@ export default function DraftPlayerTable({
                   aria-selected={selected}
                   className={cn(
                     "cursor-pointer border-b border-border outline-none last:border-b-0 hover:bg-muted/70 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400",
-                    selected && "bg-neutral-200 hover:bg-neutral-200",
+                    selected && "bg-neutral-200 hover:bg-neutral-200 focus-visible:bg-neutral-200",
                   )}
                   key={row.id}
                   onClick={() => onSelectPlayer(row.original.id)}
@@ -191,7 +197,9 @@ export default function DraftPlayerTable({
                       className={cn(
                         "whitespace-nowrap px-3 py-2.5",
                         cell.column.columnDef.meta?.numeric && "text-right tabular-nums",
-                        cell.column.id === "name" && "font-medium",
+                        cell.column.columnDef.meta?.sticky &&
+                          "sticky left-0 z-[1] min-w-40 bg-card font-medium shadow-[1px_0_0_0_var(--border)]",
+                        cell.column.columnDef.meta?.sticky && selected && "bg-neutral-200",
                       )}
                       key={cell.id}
                     >

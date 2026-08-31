@@ -22,6 +22,7 @@ export interface WeeklySeries {
   color: string
   dataKey: WeeklyMetric
   label: string
+  unit: string
   yAxis?: "left" | "right"
 }
 
@@ -35,21 +36,62 @@ interface WeeklyTrendChartProps {
 /** WeeklyTrendChart renders one or two comparable weekly signals with tooltips. */
 export default function WeeklyTrendChart({ average, data, series, title }: WeeklyTrendChartProps) {
   const hasRightAxis = series.some((item) => item.yAxis === "right")
+  const leftSeries = series.find((item) => item.yAxis !== "right")
+  const rightSeries = series.find((item) => item.yAxis === "right")
 
   return (
     <section className="rounded-lg border border-border bg-card p-3" aria-label={title}>
       <h3 className="text-sm font-semibold">{title}</h3>
-      <div className="mt-3 h-52 w-full">
+      <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-muted-foreground" aria-hidden="true">
+        {leftSeries && <span style={{ color: leftSeries.color }}>Left: {leftSeries.unit}</span>}
+        {rightSeries && <span style={{ color: rightSeries.color }}>Right: {rightSeries.unit}</span>}
+      </div>
+      <div className="mt-1 h-56 w-full">
         <ResponsiveContainer height="100%" width="100%">
-          <LineChart accessibilityLayer data={data} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
+          <LineChart accessibilityLayer data={data} margin={{ top: 12, right: 8, bottom: 8, left: 0 }}>
             <CartesianGrid stroke="#e5e5e5" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="week" tickFormatter={(week) => `W${week}`} tickLine={false} />
-            <YAxis allowDecimals yAxisId="left" domain={[0, "auto"]} tickLine={false} />
+            <XAxis
+              axisLine={{ stroke: "#d4d4d4" }}
+              dataKey="week"
+              interval="preserveStartEnd"
+              minTickGap={8}
+              tick={{ fill: "#737373", fontSize: 11 }}
+              tickFormatter={(week) => `W${week}`}
+              tickLine={false}
+            />
+            <YAxis
+              allowDecimals
+              axisLine={false}
+              domain={[0, "auto"]}
+              tick={{ fill: leftSeries?.color ?? "#737373", fontSize: 11 }}
+              tickLine={false}
+              width={38}
+              yAxisId="left"
+            />
             {hasRightAxis && (
-              <YAxis allowDecimals domain={[0, "auto"]} orientation="right" tickLine={false} yAxisId="right" />
+              <YAxis
+                allowDecimals
+                axisLine={false}
+                domain={[0, "auto"]}
+                orientation="right"
+                tick={{ fill: rightSeries?.color ?? "#737373", fontSize: 11 }}
+                tickLine={false}
+                width={34}
+                yAxisId="right"
+              />
             )}
             <Tooltip
-              contentStyle={{ borderColor: "#d4d4d4", borderRadius: "0.375rem", fontSize: "0.75rem" }}
+              contentStyle={{
+                backgroundColor: "#ffffff",
+                borderColor: "#d4d4d4",
+                borderRadius: "0.375rem",
+                boxShadow: "0 1px 3px rgb(0 0 0 / 0.1)",
+                fontSize: "0.75rem",
+              }}
+              cursor={{ stroke: "#a3a3a3", strokeDasharray: "3 3" }}
+              formatter={(value) =>
+                typeof value === "number" ? value.toFixed(1) : value
+              }
               labelFormatter={(week) => `Week ${week}`}
             />
             {series.length > 1 && <Legend iconType="line" wrapperStyle={{ fontSize: "0.75rem" }} />}

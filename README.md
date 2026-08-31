@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. M8.2 adds a manually supplied subjective score snapshot to the live-draft player inspector alongside the real-data, odds, synchronization, and manual-fallback foundation.
+A personal, local-first fantasy football draft-day dashboard for one 12-team, half-PPR Sleeper draft. It combines persisted reference data, live pick synchronization, and a manual fallback in a compact three-page interface.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ cd frontend && npm ci
 
 ## Build the local database
 
-Run data commands from `backend/`. They are explicit: starting the server or opening a page never contacts a provider.
+Run reference-data commands from `backend/`. Imports are explicit: opening a page never contacts a provider, and starting the server contacts Sleeper's public picks endpoint only when Admin has both a draft ID and polling enabled.
 
 Full FantasyPros requests require an API key with active paid HOF access; free prototype keys may return sample data below the importer's completeness threshold. Create the ignored local configuration file once, then paste the key after `FANTASYPROS_API_KEY=`:
 
@@ -129,13 +129,15 @@ npm run dev -- --host 0.0.0.0
 
 On the second computer, open `http://<laptop-LAN-IP>:5173`. Both browsers read the same SQLite draft state through the same backend poller; filters and selected-player state remain local to each browser. Port 5173 must be allowed through the laptop firewall. This development server has no authentication, so expose it only on a trusted local network and do not port-forward it to the internet.
 
-## Current M8.2 behavior
+## Current behavior
 
 Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
 
 After the three explicit refreshes and a cache-only load/rebuild, Overview shows Aggregate ADP, ECR fields, and all six projection columns. Draft Day groups all 2025 performance values above the charts and preserves its position-aware 2026 FantasyPros projection card. A separate 2026 Sportsbook Consensus card shows position-relevant player lines and the player's NFL-team win total. Missing or unmatched values remain `—` rather than zero.
 
 Live mode stores Sleeper picks per draft and derives taken/available state without modifying player rows. Draft Day refreshes the local draft snapshot once per second, so newly selected players leave the available table without a page reload; Overview uses that same snapshot for taken styling. Unknown Sleeper player IDs are retained with pick metadata and do not stop synchronization. Intentionally unsupported kicker and defense picks remain in draft history without producing unknown-player warnings. A failed Sleeper request preserves the last successful picks and marks the snapshot stale.
+
+Draft Day distinguishes live sync, initial syncing, paused polling, a stale persisted snapshot, a browser-to-local-API refresh failure, and an unconfigured draft. The selected-player inspector closes when that player becomes taken, remains independently scrollable beside the player table on common laptop widths, and retains keyboard-selectable rows with visible focus. Charts label their left/right scales and retain tooltips and legends without adding draft-time interactions.
 
 The backend starts exactly one poller only when a draft ID is configured and polling is enabled. It syncs immediately, then uses the Admin interval (default 2000 ms). Saving a different draft ID or interval cleanly replaces that loop; disabling polling stops it. Enabling the Admin toggle authorizes these repeated public pick requests until it is turned off. Browser refreshes only read SQLite through `GET /api/draft/state` and never trigger Sleeper calls.
 
@@ -148,6 +150,8 @@ For players included in the supplied snapshot, the Draft Day inspector shows the
 The prior clean rebuild was verified with 32 NFL teams, 3,045 active fantasy-position players, 6,033 weekly rows across all 18 weeks, 604 derived season rows, 314 Aggregate ADP rows, 750 ECR/tier rows, and 510 projection rows. M8.1 adds 296 validated consensus rows: 264 player markets and 32 team win totals. The odds CSVs contain 36 rows without consensus, five unmatched player-market rows, and one position mismatch; these remain absent. M8.2 adds 116 exactly matched morality-score rows. SQLite integrity and foreign-key checks pass.
 
 Admin stores Sleeper username, league ID, draft ID, polling toggle, and polling interval in SQLite. Player-pool imports are terminal commands rather than Admin actions. Sleeper's public API requires no credential, so no token/API-key/password field exists.
+
+Overview keeps the player name and column headers visible while its wide table scrolls. Taken players remain present with a muted row and explicit label. Overview and Draft Day filters are local browser state and never cause provider requests.
 
 Available routes:
 
@@ -186,6 +190,9 @@ curl -X DELETE http://localhost:8080/api/draft/manual-picks/123
 Inspect the database with the SQLite CLI:
 
 ```bash
+sqlite3 -header -box data/draft.db \
+  "SELECT sleeper_draft_id, polling_enabled, polling_interval_ms, updated_at FROM app_settings WHERE id = 1;"
+
 sqlite3 -header -box data/draft.db \
   "SELECT position, COUNT(*) AS players FROM players WHERE active = 1 GROUP BY position ORDER BY position;"
 

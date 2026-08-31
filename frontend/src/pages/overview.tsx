@@ -50,6 +50,7 @@ export default function OverviewPage() {
       return matchesPosition && matchesTeam
     })
   }, [displayedPlayers, filters])
+  const hasFilters = filters.position !== "" || filters.team !== ""
 
   return (
     <section aria-labelledby="overview-heading">
@@ -131,7 +132,23 @@ export default function OverviewPage() {
             </button>
           </div>
         )}
+
+        {hasFilters && (
+          <button
+            className="mb-0.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted"
+            onClick={() => setFilters({ position: "", team: "" })}
+            type="button"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
+
+      {draftState.isError && (
+        <p className="mt-3 text-xs text-amber-800" role="alert">
+          Could not refresh taken status; showing the latest availability held by this browser.
+        </p>
+      )}
 
       <div className="mt-4">
         {players.isPending && (
@@ -158,7 +175,14 @@ export default function OverviewPage() {
           </div>
         )}
 
-        {players.data && <PlayerOverviewTable players={filteredPlayers} />}
+        {players.data && (
+          <>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Scroll horizontally to compare every field; player names stay visible.
+            </p>
+            <PlayerOverviewTable players={filteredPlayers} />
+          </>
+        )}
       </div>
     </section>
   )

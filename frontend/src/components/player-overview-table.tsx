@@ -46,9 +46,13 @@ const columns = columnHelper.columns([
     sortDescFirst: false,
     meta: { sticky: true },
     cell: ({ getValue, row }) => (
-      <span className={cn("font-medium", row.original.is_taken && "line-through")}>
-        {getValue()}
-        {row.original.is_taken && <span className="sr-only"> (Taken)</span>}
+      <span className="flex items-center justify-between gap-2">
+        <span className="font-medium">{getValue()}</span>
+        {row.original.is_taken && (
+          <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+            Taken
+          </span>
+        )}
       </span>
     ),
   }),
@@ -260,9 +264,12 @@ export default function PlayerOverviewTable({ players }: { players: PlayerListIt
   })
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="min-w-[2420px] w-full border-collapse text-left text-xs">
-        <thead className="bg-muted text-muted-foreground">
+    <div className="max-h-[calc(100vh-15rem)] min-h-80 overflow-auto rounded-lg border border-border bg-card">
+      <table className="w-full min-w-[2320px] border-collapse text-left text-xs">
+        <caption className="sr-only">
+          Player pool with draft rankings, 2025 results, and 2026 projections.
+        </caption>
+        <thead className="sticky top-0 z-30 bg-muted text-muted-foreground">
           {playerTable.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
@@ -272,9 +279,10 @@ export default function PlayerOverviewTable({ players }: { players: PlayerListIt
                   <th
                     aria-sort={ariaSort(sorted)}
                     className={cn(
-                      "border-b border-border px-3 py-2 font-semibold",
+                      "border-b border-border px-2.5 py-2 font-semibold",
                       meta?.numeric && "text-right",
-                      meta?.sticky && "sticky left-0 z-20 min-w-44 bg-muted",
+                      meta?.sticky &&
+                        "sticky left-0 z-40 min-w-48 bg-muted shadow-[1px_0_0_0_var(--border)]",
                     )}
                     key={header.id}
                     scope="col"
@@ -320,10 +328,10 @@ export default function PlayerOverviewTable({ players }: { players: PlayerListIt
                   return (
                     <td
                       className={cn(
-                        "whitespace-nowrap px-3 py-2",
+                        "whitespace-nowrap px-2.5 py-1.5",
                         meta?.numeric && "text-right tabular-nums",
                         meta?.sticky &&
-                          "sticky left-0 z-10 min-w-44 bg-card",
+                          "sticky left-0 z-10 min-w-48 bg-card shadow-[1px_0_0_0_var(--border)]",
                         meta?.sticky && row.original.is_taken && "bg-neutral-100",
                       )}
                       key={cell.id}
