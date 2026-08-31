@@ -91,7 +91,7 @@ Prioritize quick draft decisions.
 
 ### Manual fallback
 
-`Mark Drafted` creates a `source='manual'` pick on the active local draft; the player immediately leaves the available list and grays out on Overview; affected TanStack queries are invalidated. Manual picks survive refresh (they're DB rows) and are undoable — list-and-delete or `Undo Last Manual Pick`, whichever is simpler. Idempotency with official Sleeper picks per AGENTS.md §7.
+`Mark Drafted` requires a configured Sleeper draft ID and creates a `source='manual'` pick on that active local draft. The backend returns the updated draft state, so the player immediately leaves the available list and grays out on Overview without waiting for the next poll. Draft Day lists each manual pick with its own Undo action. Manual picks survive refresh because they are DB rows; official Sleeper picks are never removable through this fallback. When official synchronization catches up, its pick number/player identity replaces any conflicting manual row per AGENTS.md §7.
 
 ---
 
@@ -212,7 +212,7 @@ Small increments; app runnable after each. Run the AGENTS.md §1 checks before d
 
 **M7 — Live draft sync.** Poller + `/api/draft/state`. *Done when:* entering a real draft ID makes Draft Day follow it; exactly one poller runs when enabled+configured; changing ID/interval or disabling cleanly restarts/stops it; new picks remove players without reload; repeated polling never duplicates picks; unknown IDs don't crash sync; Sleeper outage falls back to last known state with a stale flag; polling is toggleable and the interval changes without recompiling. **A Sleeper CPU mock draft is the end-to-end test target — run one before the real draft.**
 
-**M8 — Manual fallback.** Mark-drafted + undo. *Done when:* manual marking updates availability instantly, survives refresh, and official sync never produces contradictory duplicates.
+**M8 — Manual fallback.** Mark-drafted + per-pick undo for the configured draft. *Done when:* manual marking updates availability instantly, survives refresh, cannot delete official picks or another draft's history, and official sync never produces contradictory duplicates.
 
 **M8.1 — Real season odds.** After live sync and manual fallback, choose/approve sources for player futures and populate `odds`. Team win totals remain hidden unless explicitly requested again. *Done when:* markets use named sources/capture times, unmatched subjects are reported, and missing markets remain missing rather than zero.
 

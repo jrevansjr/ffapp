@@ -2,9 +2,155 @@ package database
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 )
+
+func TestManualPickLifecycleAndDraftIsolation(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "draft.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`
+		INSERT INTO nfl_teams (id, abbreviation, name)
+		VALUES (1, 'BUF', 'Buffalo Bills');
+		INSERT INTO players (
+			id, sleeper_player_id, first_name, last_name, position, nfl_team_id
+		) VALUES
+			(1, 'manual-one', 'Manual', 'One', 'WR', 1),
+			(2, 'manual-two', 'Manual', 'Two', 'RB', 1),
+			(3, 'official', 'Official', 'Player', 'QB', 1);
+	`); err != nil {
+		t.Fatalf("insert manual-pick fixture: %v", err)
+	}
+	settings, err := UpdateSettings(context.Background(), db, EditableSettings{
+		SleeperDraftID: "draft-a", PollingEnabled: false, PollingInterval: 2000,
+	})
+	if err != nil {
+		t.Fatalf("activate draft-a: %v", err)
+	}
+	if _, err := SyncDraftPicks(context.Background(), db, settings.SleeperDraftID, "", []DraftPickInput{
+		{PickNumber: 5, SleeperPlayerID: "official", Position: "QB"},
+	}); err != nil {
+		t.Fatalf("sync official fixture: %v", err)
+	}
+
+	first, err := CreateManualPick(context.Background(), db, 1)
+	if err != nil {
+		t.Fatalf("CreateManualPick(first) error = %v", err)
+	}
+	if first.PickNumber != 6 || first.Source != "manual" || first.PlayerTeam == nil ||
+		*first.PlayerTeam != "BUF" {
+		t.Fatalf("first manual pick = %#v", first)
+	}
+	second, err := CreateManualPick(context.Background(), db, 2)
+	if err != nil {
+		t.Fatalf("CreateManualPick(second) error = %v", err)
+	}
+	if second.PickNumber != 7 {
+		t.Fatalf("second manual pick number = %d, want 7", second.PickNumber)
+	}
+	if _, err := CreateManualPick(context.Background(), db, 1); !errors.Is(err, ErrPlayerAlreadyTaken) {
+		t.Fatalf("duplicate CreateManualPick() error = %v, want ErrPlayerAlreadyTaken", err)
+	}
+
+	deleted, err := DeleteManualPick(context.Background(), db, second.ID)
+	if err != nil {
+		t.Fatalf("DeleteManualPick() error = %v", err)
+	}
+	if deleted.ID != second.ID || deleted.SleeperPlayerID != "manual-two" {
+		t.Fatalf("deleted manual pick = %#v", deleted)
+	}
+	state, err := GetDraftState(context.Background(), db)
+	if err != nil {
+		t.Fatalf("GetDraftState() after undo error = %v", err)
+	}
+	if len(state.Picks) != 2 || len(state.TakenPlayerIDs) != 2 {
+		t.Fatalf("state after undo = %#v", state)
+	}
+	var officialPickID int64
+	if err := db.QueryRow(`
+		SELECT draft_picks.id
+		FROM draft_picks
+		JOIN drafts ON drafts.id = draft_picks.draft_id
+		WHERE drafts.sleeper_draft_id = 'draft-a' AND draft_picks.source = 'sleeper'
+	`).Scan(&officialPickID); err != nil {
+		t.Fatalf("load official pick ID: %v", err)
+	}
+	if _, err := DeleteManualPick(context.Background(), db, officialPickID); !errors.Is(err, ErrManualPickNotFound) {
+		t.Fatalf("delete official pick error = %v, want ErrManualPickNotFound", err)
+	}
+
+	if _, err := UpdateSettings(context.Background(), db, EditableSettings{
+		SleeperDraftID: "draft-b", PollingEnabled: false, PollingInterval: 2000,
+	}); err != nil {
+		t.Fatalf("activate draft-b: %v", err)
+	}
+	if _, err := DeleteManualPick(context.Background(), db, first.ID); !errors.Is(err, ErrManualPickNotFound) {
+		t.Fatalf("delete inactive-draft pick error = %v, want ErrManualPickNotFound", err)
+	}
+	draftBPick, err := CreateManualPick(context.Background(), db, 1)
+	if err != nil {
+		t.Fatalf("CreateManualPick(draft-b) error = %v", err)
+	}
+	if draftBPick.PickNumber != 1 {
+		t.Fatalf("draft-b pick number = %d, want 1", draftBPick.PickNumber)
+	}
+
+	if _, err := UpdateSettings(context.Background(), db, EditableSettings{
+		SleeperDraftID: "draft-a", PollingEnabled: false, PollingInterval: 2000,
+	}); err != nil {
+		t.Fatalf("reactivate draft-a: %v", err)
+	}
+	if _, err := SyncDraftPicks(context.Background(), db, "draft-a", "", []DraftPickInput{
+		{PickNumber: 5, SleeperPlayerID: "official", Position: "QB"},
+		{PickNumber: 6, SleeperPlayerID: "manual-one", Position: "WR"},
+	}); err != nil {
+		t.Fatalf("reconcile official picks: %v", err)
+	}
+	state, err = GetDraftState(context.Background(), db)
+	if err != nil {
+		t.Fatalf("GetDraftState() after reconciliation error = %v", err)
+	}
+	if len(state.Picks) != 2 || state.Picks[1].Source != "sleeper" ||
+		state.Picks[1].SleeperPlayerID != "manual-one" {
+		t.Fatalf("reconciled state = %#v", state)
+	}
+}
+
+func TestManualPickValidation(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "draft.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`
+		INSERT INTO players (id, first_name, last_name, position)
+		VALUES (1, 'No', 'Sleeper ID', 'WR')
+	`); err != nil {
+		t.Fatalf("insert undraftable player: %v", err)
+	}
+
+	if _, err := CreateManualPick(context.Background(), db, 1); !errors.Is(err, ErrDraftNotConfigured) {
+		t.Fatalf("unconfigured CreateManualPick() error = %v, want ErrDraftNotConfigured", err)
+	}
+	if _, err := DeleteManualPick(context.Background(), db, 1); !errors.Is(err, ErrDraftNotConfigured) {
+		t.Fatalf("unconfigured DeleteManualPick() error = %v, want ErrDraftNotConfigured", err)
+	}
+	if _, err := UpdateSettings(context.Background(), db, EditableSettings{
+		SleeperDraftID: "draft", PollingEnabled: false, PollingInterval: 2000,
+	}); err != nil {
+		t.Fatalf("activate draft: %v", err)
+	}
+	if _, err := CreateManualPick(context.Background(), db, 999); !errors.Is(err, ErrPlayerNotFound) {
+		t.Fatalf("missing-player CreateManualPick() error = %v, want ErrPlayerNotFound", err)
+	}
+	if _, err := CreateManualPick(context.Background(), db, 1); !errors.Is(err, ErrPlayerNotDraftable) {
+		t.Fatalf("undraftable CreateManualPick() error = %v, want ErrPlayerNotDraftable", err)
+	}
+}
 
 func TestSyncDraftPicksIsIdempotentAndReconcilesOfficialState(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "draft.db"))

@@ -71,6 +71,32 @@ export async function getDraftState(): Promise<DraftState> {
   return response.json() as Promise<DraftState>
 }
 
+/** Persists one selected local player as a manual pick in the configured draft. */
+export async function markPlayerDrafted(playerID: number): Promise<DraftState> {
+  const response = await fetch("/api/draft/manual-picks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ player_id: playerID }),
+  })
+  if (!response.ok) {
+    throw await responseError(response, "Could not mark player as drafted")
+  }
+
+  return response.json() as Promise<DraftState>
+}
+
+/** Removes one manual pick; official Sleeper picks cannot be removed here. */
+export async function undoManualPick(pickID: number): Promise<DraftState> {
+  const response = await fetch(`/api/draft/manual-picks/${pickID}`, {
+    method: "DELETE",
+  })
+  if (!response.ok) {
+    throw await responseError(response, "Could not undo manual pick")
+  }
+
+  return response.json() as Promise<DraftState>
+}
+
 /** Loads team labels used by the local Overview filter. */
 export async function getNFLTeams(): Promise<NFLTeam[]> {
   const response = await fetch("/api/nfl-teams")

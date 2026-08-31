@@ -1,10 +1,16 @@
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router"
 
 import DraftPlayerTable from "@/components/draft-player-table"
 import PlayerInspector from "@/components/player-inspector"
-import { getDraftState, getNFLTeams, getPlayers } from "@/lib/api"
+import {
+  getDraftState,
+  getNFLTeams,
+  getPlayers,
+  markPlayerDrafted,
+  undoManualPick,
+} from "@/lib/api"
 import type { DraftPick } from "@/lib/types"
 
 const positions = ["QB", "RB", "WR", "TE"]
@@ -32,8 +38,14 @@ function unknownPickLabel(pick: DraftPick): string {
   return name === "" ? pick.sleeper_player_id : `${name} (${pick.sleeper_player_id})`
 }
 
+function pickPlayerLabel(pick: DraftPick): string {
+  const name = [pick.first_name, pick.last_name].filter(Boolean).join(" ")
+  return name === "" ? `Player ${pick.sleeper_player_id}` : name
+}
+
 /** DraftPage coordinates local availability, filters, selection, and inspector data. */
 export default function DraftPage() {
+  const queryClient = useQueryClient()
   const [filters, setFilters] = useState<DraftFilters>({
     name: "",
     position: "",
@@ -58,6 +70,17 @@ export default function DraftPage() {
     queryFn: getDraftState,
     retry: false,
     refetchInterval: 1000,
+  })
+  const markDrafted = useMutation({
+    mutationFn: markPlayerDrafted,
+    onSuccess: (state) => {
+      queryClient.setQueryData(["draft-state"], state)
+      setSelectedPlayerID(null)
+    },
+  })
+  const undoPick = useMutation({
+    mutationFn: undoManualPick,
+    onSuccess: (state) => queryClient.setQueryData(["draft-state"], state),
   })
 
   const takenPlayerIDs = draftState.data?.taken_player_ids
@@ -99,6 +122,12 @@ export default function DraftPage() {
   const unknownSleeperIDs = new Set(draftState.data?.unknown_sleeper_player_ids ?? [])
   const unknownPicks =
     draftState.data?.picks.filter((pick) => unknownSleeperIDs.has(pick.sleeper_player_id)) ?? []
+  const manualPicks = draftState.data?.picks.filter((pick) => pick.source === "manual") ?? []
+
+  function selectPlayer(playerID: number) {
+    markDrafted.reset()
+    setSelectedPlayerID(playerID)
+  }
 
   return (
     <section aria-labelledby="draft-heading">
@@ -186,7 +215,7 @@ export default function DraftPage() {
               </div>
             </div>
             <div className="text-right text-xs text-muted-foreground">
-              <p>{draftState.data.picks.length} synchronized picks</p>
+              <p>{draftState.data.picks.length} recorded picks</p>
               <p>
                 {draftState.data.last_synced_at
                   ? `Last sync ${formatTimestamp(draftState.data.last_synced_at)}`
@@ -205,6 +234,44 @@ export default function DraftPage() {
             <p className="mt-0.5 break-words">
               Unknown mapping: {unknownPicks.map(unknownPickLabel).join(", ")}
             </p>
+          </div>
+        )}
+        {manualPicks.length > 0 && (
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Manual picks
+            </p>
+            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+              {manualPicks.map((pick) => (
+                <li
+                  className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2"
+                  key={pick.id}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      #{pick.pick_number} {pickPlayerLabel(pick)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {[pick.position, pick.team].filter(Boolean).join(" · ") ||
+                        "Player details unavailable"}
+                    </p>
+                  </div>
+                  <button
+                    className="shrink-0 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={undoPick.isPending}
+                    onClick={() => undoPick.mutate(pick.id)}
+                    type="button"
+                  >
+                    {undoPick.isPending && undoPick.variables === pick.id ? "Undoing…" : "Undo"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {undoPick.isError && (
+              <p className="mt-2 text-xs text-red-700" role="alert">
+                {errorMessage(undoPick.error, "Could not undo manual pick.")}
+              </p>
+            )}
           </div>
         )}
         {draftState.isError && draftState.data && (
@@ -344,13 +411,25 @@ export default function DraftPage() {
                   ? "No available players."
                   : "No players match these filters."
               }
-              onSelectPlayer={setSelectedPlayerID}
+              onSelectPlayer={selectPlayer}
               players={filteredPlayers}
               selectedPlayerID={selectedPlayerID}
             />
           </section>
 
-          <PlayerInspector playerID={selectedPlayerID} />
+          <PlayerInspector
+            canMarkDrafted={
+              draftState.data !== undefined && draftState.data.status !== "not_configured"
+            }
+            isMarkingDrafted={markDrafted.isPending}
+            markDraftedError={
+              markDrafted.isError
+                ? errorMessage(markDrafted.error, "Could not mark player as drafted.")
+                : null
+            }
+            onMarkDrafted={(playerID) => markDrafted.mutate(playerID)}
+            playerID={selectedPlayerID}
+          />
         </div>
       )}
     </section>

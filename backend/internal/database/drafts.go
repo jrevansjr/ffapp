@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,6 +13,19 @@ import (
 // DraftSyncFailureMessage is safe to display while the poller keeps serving
 // the last successfully persisted draft state.
 const DraftSyncFailureMessage = "Sleeper is temporarily unavailable; showing the last known draft state."
+
+var (
+	// ErrDraftNotConfigured means a manual action has no active draft context.
+	ErrDraftNotConfigured = errors.New("no Sleeper draft is configured")
+	// ErrPlayerNotFound means the requested local player does not exist.
+	ErrPlayerNotFound = errors.New("player not found")
+	// ErrPlayerNotDraftable means the player has no Sleeper identity to persist.
+	ErrPlayerNotDraftable = errors.New("player has no Sleeper ID")
+	// ErrPlayerAlreadyTaken prevents duplicate manual or official availability.
+	ErrPlayerAlreadyTaken = errors.New("player is already taken")
+	// ErrManualPickNotFound prevents deleting official or inactive-draft picks.
+	ErrManualPickNotFound = errors.New("manual pick not found")
+)
 
 // DraftPickInput is one validated Sleeper pick ready for transactional merge.
 type DraftPickInput struct {
@@ -62,6 +76,166 @@ type existingDraftPick struct {
 	PickNumber      int
 	SleeperPlayerID string
 	Source          string
+}
+
+// CreateManualPick marks one local player taken on the configured draft. The
+// next persisted pick number is assigned across both official and manual picks.
+func CreateManualPick(ctx context.Context, db *sql.DB, playerID int64) (DraftPick, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return DraftPick{}, fmt.Errorf("begin manual pick: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	draftID, leagueID, err := configuredDraftIDs(ctx, tx)
+	if err != nil {
+		return DraftPick{}, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	localDraftID, err := ensureDraft(ctx, tx, draftID, leagueID, now)
+	if err != nil {
+		return DraftPick{}, err
+	}
+
+	var sleeperPlayerID, team sql.NullString
+	var firstName, lastName, position string
+	err = tx.QueryRowContext(ctx, `
+		SELECT
+			players.sleeper_player_id,
+			players.first_name,
+			players.last_name,
+			players.position,
+			nfl_teams.abbreviation
+		FROM players
+		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
+		WHERE players.id = ?
+	`, playerID).Scan(&sleeperPlayerID, &firstName, &lastName, &position, &team)
+	if err == sql.ErrNoRows {
+		return DraftPick{}, ErrPlayerNotFound
+	}
+	if err != nil {
+		return DraftPick{}, fmt.Errorf("load manual-pick player: %w", err)
+	}
+	if !sleeperPlayerID.Valid || sleeperPlayerID.String == "" {
+		return DraftPick{}, ErrPlayerNotDraftable
+	}
+
+	var alreadyTaken int
+	err = tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM draft_picks
+			WHERE draft_id = ?
+				AND (player_id = ? OR sleeper_player_id = ?)
+		)
+	`, localDraftID, playerID, sleeperPlayerID.String).Scan(&alreadyTaken)
+	if err != nil {
+		return DraftPick{}, fmt.Errorf("check manual-pick availability: %w", err)
+	}
+	if alreadyTaken == 1 {
+		return DraftPick{}, ErrPlayerAlreadyTaken
+	}
+
+	var pick DraftPick
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO draft_picks (
+			draft_id, pick_number, sleeper_player_id, player_id, source,
+			created_at, player_first_name, player_last_name,
+			player_position, player_team
+		)
+		SELECT
+			?, COALESCE(MAX(pick_number), 0) + 1, ?, ?, 'manual', ?, ?, ?, ?, ?
+		FROM draft_picks
+		WHERE draft_id = ?
+		RETURNING id, pick_number
+	`,
+		localDraftID,
+		sleeperPlayerID.String,
+		playerID,
+		now,
+		firstName,
+		lastName,
+		position,
+		nullableText(team.String),
+		localDraftID,
+	).Scan(&pick.ID, &pick.PickNumber)
+	if err != nil {
+		return DraftPick{}, fmt.Errorf("insert manual pick: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return DraftPick{}, fmt.Errorf("commit manual pick: %w", err)
+	}
+
+	pick.SleeperPlayerID = sleeperPlayerID.String
+	pick.PlayerID = &playerID
+	pick.Source = "manual"
+	pick.PlayerFirstName = stringPointer(firstName)
+	pick.PlayerLastName = stringPointer(lastName)
+	pick.PlayerPosition = stringPointer(position)
+	pick.PlayerTeam = nullStringPointer(team)
+	return pick, nil
+}
+
+// DeleteManualPick removes one manual pick from the configured draft. Official
+// Sleeper picks and manual picks belonging to another draft are never deleted.
+func DeleteManualPick(ctx context.Context, db *sql.DB, pickID int64) (DraftPick, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return DraftPick{}, fmt.Errorf("begin manual-pick undo: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	draftID, _, err := configuredDraftIDs(ctx, tx)
+	if err != nil {
+		return DraftPick{}, err
+	}
+	var pick DraftPick
+	var firstName, lastName sql.NullString
+	err = tx.QueryRowContext(ctx, `
+		SELECT
+			draft_picks.id,
+			draft_picks.pick_number,
+			draft_picks.sleeper_player_id,
+			draft_picks.player_first_name,
+			draft_picks.player_last_name
+		FROM draft_picks
+		JOIN drafts ON drafts.id = draft_picks.draft_id
+		WHERE draft_picks.id = ?
+			AND draft_picks.source = 'manual'
+			AND drafts.sleeper_draft_id = ?
+	`, pickID, draftID).Scan(
+		&pick.ID,
+		&pick.PickNumber,
+		&pick.SleeperPlayerID,
+		&firstName,
+		&lastName,
+	)
+	if err == sql.ErrNoRows {
+		return DraftPick{}, ErrManualPickNotFound
+	}
+	if err != nil {
+		return DraftPick{}, fmt.Errorf("load manual pick for undo: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM draft_picks WHERE id = ? AND source = 'manual'
+	`, pick.ID); err != nil {
+		return DraftPick{}, fmt.Errorf("delete manual pick: %w", err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE drafts SET updated_at = ?
+		WHERE sleeper_draft_id = ?
+	`, now, draftID); err != nil {
+		return DraftPick{}, fmt.Errorf("update draft after manual-pick undo: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return DraftPick{}, fmt.Errorf("commit manual-pick undo: %w", err)
+	}
+
+	pick.Source = "manual"
+	pick.PlayerFirstName = nullStringPointer(firstName)
+	pick.PlayerLastName = nullStringPointer(lastName)
+	return pick, nil
 }
 
 // SyncDraftPicks reconciles the latest complete Sleeper response in one short
@@ -312,6 +486,25 @@ func isIntentionallyUnsupportedDraftPosition(position string) bool {
 	default:
 		return false
 	}
+}
+
+func configuredDraftIDs(ctx context.Context, tx *sql.Tx) (string, string, error) {
+	var draftID, leagueID string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT sleeper_draft_id, sleeper_league_id
+		FROM app_settings
+		WHERE id = 1
+	`).Scan(&draftID, &leagueID); err != nil {
+		return "", "", fmt.Errorf("load configured draft for manual action: %w", err)
+	}
+	if draftID == "" {
+		return "", "", ErrDraftNotConfigured
+	}
+	return draftID, leagueID, nil
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func ensureDraft(ctx context.Context, tx *sql.Tx, draftID, leagueID, now string) (int64, error) {

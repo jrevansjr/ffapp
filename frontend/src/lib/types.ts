@@ -18,7 +18,7 @@ export interface SettingsUpdate {
   polling_interval_ms: number
 }
 
-/** DraftPick is one persisted official or future manual selection. */
+/** DraftPick is one persisted official or manual selection. */
 export interface DraftPick {
   id: number
   pick_number: number

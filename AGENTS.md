@@ -128,7 +128,7 @@ Exactly **one** background goroutine polls the configured active draft. This is 
 - Runs an immediate sync on start, then ticks on the interval.
 - Each iteration is synchronous and linear: fetch picks → parse → map Sleeper IDs to local player IDs where possible → upsert → update last-sync status.
 - Stops/restarts cleanly (store a cancel func, `context.Context`, ticker) when polling is disabled, the draft ID changes, the interval changes, or the app shuts down.
-- No configured draft ID is a **normal state**: no poller runs, and Overview / player detail / Admin / manual mode all still work. Draft Day shows a clean "not configured" state, not an error.
+- No configured draft ID is a **normal state**: no poller runs, and Overview / player detail / Admin still work. Draft Day shows a clean "not configured" state, not an error. Manual picks require a configured draft ID so they always belong to an explicit draft.
 
 **Sleeper failure behavior:** never crash; keep serving the last persisted local draft state; mark it `stale: true` with `last_synced_at` and a short user-displayable message; keep manual actions usable.
 

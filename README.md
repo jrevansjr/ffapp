@@ -1,6 +1,6 @@
 # Fantasy Football Draft App
 
-A personal, local-first fantasy football draft-day dashboard. M7 adds live Sleeper draft-pick synchronization to the persistent real-data foundation built through M6.5.
+A personal, local-first fantasy football draft-day dashboard. M8 adds a persistent manual fallback to live Sleeper draft-pick synchronization and the real-data foundation built through M6.5.
 
 ## Prerequisites
 
@@ -121,7 +121,7 @@ npm run dev -- --host 0.0.0.0
 
 On the second computer, open `http://<laptop-LAN-IP>:5173`. Both browsers read the same SQLite draft state through the same backend poller; filters and selected-player state remain local to each browser. Port 5173 must be allowed through the laptop firewall. This development server has no authentication, so expose it only on a trusted local network and do not port-forward it to the internet.
 
-## Current M7 behavior
+## Current M8 behavior
 
 Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
 
@@ -131,7 +131,9 @@ Live mode stores Sleeper picks per draft and derives taken/available state witho
 
 The backend starts exactly one poller only when a draft ID is configured and polling is enabled. It syncs immediately, then uses the Admin interval (default 2000 ms). Saving a different draft ID or interval cleanly replaces that loop; disabling polling stops it. Enabling the Admin toggle authorizes these repeated public pick requests until it is turned off. Browser refreshes only read SQLite through `GET /api/draft/state` and never trigger Sleeper calls.
 
-Manual mark-drafted/undo remains M8. Projections are not presented as odds, team-win totals remain hidden, and real season odds are deferred until after manual fallback.
+With a Sleeper draft ID saved in Admin, selecting an available player exposes a `Mark Drafted` fallback. It immediately records that player against the configured draft and removes them from availability. Manual picks persist across reloads and appear in the status panel with individual Undo buttons; official Sleeper picks cannot be undone there. A later successful Sleeper sync replaces any overlapping manual state without creating duplicate availability. This works while polling is disabled or stale, but deliberately does not work without a configured draft ID.
+
+Projections are not presented as odds, team-win totals remain hidden, and real season odds remain deferred.
 
 The clean M6.5 rebuild was verified with 32 NFL teams, 3,045 active fantasy-position players, 6,033 weekly rows across all 18 weeks, 604 derived season rows, 314 Aggregate ADP rows, 750 ECR/tier rows, and 510 projection rows. These counts describe the current provider snapshots and can change after a deliberate refresh. SQLite integrity and foreign-key checks passed, no synthetic players remained, and `odds`, `drafts`, and `draft_picks` were empty as required.
 
@@ -149,6 +151,8 @@ Available routes:
 - `GET /api/settings`
 - `PUT /api/settings`
 - `GET /api/draft/state`
+- `POST /api/draft/manual-picks`
+- `DELETE /api/draft/manual-picks/{id}`
 
 Inspect the local API directly:
 
@@ -158,6 +162,15 @@ curl http://localhost:8080/api/nfl-teams
 curl 'http://localhost:8080/api/players?position=QB'
 curl http://localhost:8080/api/settings
 curl http://localhost:8080/api/draft/state
+```
+
+Manual actions are normally easiest from Draft Day. For direct API inspection, use a real local player ID and an ID returned in the updated state's `picks` array:
+
+```bash
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"player_id":42}' http://localhost:8080/api/draft/manual-picks
+
+curl -X DELETE http://localhost:8080/api/draft/manual-picks/123
 ```
 
 Inspect the database with the SQLite CLI:

@@ -35,6 +35,8 @@ func NewRouter(db *sql.DB, onSettingsUpdated func(database.Settings)) http.Handl
 	router.Get("/api/settings", h.handleGetSettings)
 	router.Put("/api/settings", h.handleUpdateSettings)
 	router.Get("/api/draft/state", h.handleGetDraftState)
+	router.Post("/api/draft/manual-picks", h.handleCreateManualPick)
+	router.Delete("/api/draft/manual-picks/{id}", h.handleDeleteManualPick)
 	return router
 }
 

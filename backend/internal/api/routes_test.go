@@ -266,6 +266,128 @@ func TestDraftStateEndpointUsesPersistedSnapshot(t *testing.T) {
 	}
 }
 
+func TestManualPickEndpointsCreateAndUndoActiveDraftPicks(t *testing.T) {
+	db, router := newTestRouter(t)
+
+	invalidRequests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodPost, path: "/api/draft/manual-picks", body: `{}`},
+		{method: http.MethodPost, path: "/api/draft/manual-picks", body: `{"player_id":0}`},
+		{method: http.MethodPost, path: "/api/draft/manual-picks", body: `{"player_id":2,"extra":true}`},
+		{method: http.MethodPost, path: "/api/draft/manual-picks", body: `{"player_id":2} {}`},
+		{method: http.MethodDelete, path: "/api/draft/manual-picks/not-a-number"},
+		{method: http.MethodDelete, path: "/api/draft/manual-picks/0"},
+	}
+	for _, request := range invalidRequests {
+		recorder := serveRequest(router, request.method, request.path, request.body)
+		if recorder.Code != http.StatusBadRequest {
+			t.Errorf("%s %s status = %d, want 400", request.method, request.path, recorder.Code)
+		}
+	}
+
+	unconfigured := serveRequest(
+		router,
+		http.MethodPost,
+		"/api/draft/manual-picks",
+		`{"player_id":2}`,
+	)
+	if unconfigured.Code != http.StatusConflict {
+		t.Fatalf("unconfigured manual pick status = %d, want 409", unconfigured.Code)
+	}
+	if _, err := database.UpdateSettings(context.Background(), db, database.EditableSettings{
+		SleeperDraftID: "fixture-draft", PollingEnabled: false, PollingInterval: 2000,
+	}); err != nil {
+		t.Fatalf("activate fixture draft: %v", err)
+	}
+
+	createdRecorder := serveRequest(
+		router,
+		http.MethodPost,
+		"/api/draft/manual-picks",
+		`{"player_id":2}`,
+	)
+	if createdRecorder.Code != http.StatusCreated {
+		t.Fatalf(
+			"POST manual pick status = %d, want 201; body = %s",
+			createdRecorder.Code,
+			createdRecorder.Body,
+		)
+	}
+	var created draftStateResponse
+	decodeResponse(t, createdRecorder, &created)
+	if len(created.Picks) != 2 || len(created.TakenPlayerIDs) != 2 {
+		t.Fatalf("state after manual pick = %#v", created)
+	}
+	var manualPickID, officialPickID int64
+	for _, pick := range created.Picks {
+		switch pick.Source {
+		case "manual":
+			manualPickID = pick.ID
+		case "sleeper":
+			officialPickID = pick.ID
+		}
+	}
+	if manualPickID == 0 || officialPickID == 0 {
+		t.Fatalf("manual/official pick IDs = %d/%d", manualPickID, officialPickID)
+	}
+
+	duplicate := serveRequest(
+		router,
+		http.MethodPost,
+		"/api/draft/manual-picks",
+		`{"player_id":2}`,
+	)
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("duplicate manual pick status = %d, want 409", duplicate.Code)
+	}
+	missingPlayer := serveRequest(
+		router,
+		http.MethodPost,
+		"/api/draft/manual-picks",
+		`{"player_id":999999}`,
+	)
+	if missingPlayer.Code != http.StatusNotFound {
+		t.Fatalf("missing-player manual pick status = %d, want 404", missingPlayer.Code)
+	}
+	officialDelete := serveRequest(
+		router,
+		http.MethodDelete,
+		"/api/draft/manual-picks/"+strconvFormatInt(officialPickID),
+		"",
+	)
+	if officialDelete.Code != http.StatusNotFound {
+		t.Fatalf("official-pick delete status = %d, want 404", officialDelete.Code)
+	}
+
+	deletedRecorder := serveRequest(
+		router,
+		http.MethodDelete,
+		"/api/draft/manual-picks/"+strconvFormatInt(manualPickID),
+		"",
+	)
+	if deletedRecorder.Code != http.StatusOK {
+		t.Fatalf("DELETE manual pick status = %d, want 200", deletedRecorder.Code)
+	}
+	var deleted draftStateResponse
+	decodeResponse(t, deletedRecorder, &deleted)
+	if len(deleted.Picks) != 1 || len(deleted.TakenPlayerIDs) != 1 ||
+		deleted.Picks[0].Source != "sleeper" {
+		t.Fatalf("state after manual undo = %#v", deleted)
+	}
+	repeatedDelete := serveRequest(
+		router,
+		http.MethodDelete,
+		"/api/draft/manual-picks/"+strconvFormatInt(manualPickID),
+		"",
+	)
+	if repeatedDelete.Code != http.StatusNotFound {
+		t.Fatalf("repeated manual-pick delete status = %d, want 404", repeatedDelete.Code)
+	}
+}
+
 func TestPlayerEndpointValidationAndNotFound(t *testing.T) {
 	_, router := newTestRouter(t)
 	for _, path := range []string{

@@ -53,6 +53,10 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 interface PlayerInspectorProps {
+  canMarkDrafted: boolean
+  isMarkingDrafted: boolean
+  markDraftedError: string | null
+  onMarkDrafted: (playerID: number) => void
   playerID: number | null
 }
 
@@ -81,8 +85,14 @@ function projectionMetrics(detail: PlayerDetail): Array<{ label: string; value: 
   }
 }
 
-/** PlayerInspector loads one selected player's local detail and decision signals. */
-export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
+/** PlayerInspector loads one selected player's local detail and exposes the manual draft fallback. */
+export default function PlayerInspector({
+  canMarkDrafted,
+  isMarkingDrafted,
+  markDraftedError,
+  onMarkDrafted,
+  playerID,
+}: PlayerInspectorProps) {
   const detail = useQuery({
     queryKey: ["player", playerID],
     queryFn: () => getPlayer(playerID as number),
@@ -162,6 +172,27 @@ export default function PlayerInspector({ playerID }: PlayerInspectorProps) {
             }
           />
         </dl>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <button
+            className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canMarkDrafted || isMarkingDrafted}
+            onClick={() => onMarkDrafted(player.id)}
+            type="button"
+          >
+            {isMarkingDrafted ? "Marking Drafted…" : "Mark Drafted"}
+          </button>
+          {!canMarkDrafted && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Save a Sleeper draft ID in Admin before recording manual picks.
+            </p>
+          )}
+          {markDraftedError && (
+            <p className="mt-2 text-xs text-red-700" role="alert">
+              {markDraftedError}
+            </p>
+          )}
+        </div>
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4" aria-labelledby="expert-range-heading">
