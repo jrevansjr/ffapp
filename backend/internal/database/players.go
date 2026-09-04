@@ -87,8 +87,11 @@ type PlayerProfile struct {
 	DepthChartPosition    *string
 	DepthChartOrder       *int
 	InjuryStatus          *string
+	InjuryBodyPart        *string
+	InjuryNotes           *string
 	InjuryStartDate       *string
 	PracticeParticipation *string
+	SleeperDataUpdatedAt  *string
 	ProviderIDs           ProviderIDs
 }
 
@@ -189,6 +192,7 @@ type PlayerDetail struct {
 	Projections *PlayerProjections
 	Odds        PlayerOdds
 	Morality    *PlayerMoralityScore
+	SeasonTeams []NFLTeam
 	Weekly      []PlayerWeekStats
 }
 
@@ -416,6 +420,9 @@ func GetPlayer(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, e
 	if detail.Season, err = loadPlayerSeason(ctx, db, playerID); err != nil {
 		return PlayerDetail{}, err
 	}
+	if detail.SeasonTeams, err = loadPlayerSeasonTeams(ctx, db, playerID); err != nil {
+		return PlayerDetail{}, err
+	}
 	if detail.Draft, err = loadPlayerDraftData(ctx, db, playerID); err != nil {
 		return PlayerDetail{}, err
 	}
@@ -483,14 +490,15 @@ func loadPlayerProjections(ctx context.Context, db *sql.DB, playerID int64) (*Pl
 
 func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerDetail, error) {
 	var (
-		detail                                                 PlayerDetail
-		sleeperID, teamAbbreviation, teamName, birthDate       sql.NullString
-		status, college, height, weight, birthCountry          sql.NullString
-		depthPosition, injuryStatus, injuryStart, practice     sql.NullString
-		espnID, sportradarID, rotowireID, rotoworldID, yahooID sql.NullString
-		fantasyDataID, statsID, gsisID, fantasyProsID          sql.NullString
-		teamID, number, yearsExp, depthOrder                   sql.NullInt64
-		active, isTaken                                        int
+		detail                                                   PlayerDetail
+		sleeperID, teamAbbreviation, teamName, birthDate         sql.NullString
+		status, college, height, weight, birthCountry            sql.NullString
+		depthPosition, injuryStatus, injuryBodyPart, injuryNotes sql.NullString
+		injuryStart, practice, sleeperDataUpdatedAt              sql.NullString
+		espnID, sportradarID, rotowireID, rotoworldID, yahooID   sql.NullString
+		fantasyDataID, statsID, gsisID, fantasyProsID            sql.NullString
+		teamID, number, yearsExp, depthOrder                     sql.NullInt64
+		active, isTaken                                          int
 	)
 	err := db.QueryRowContext(ctx, `
 		SELECT
@@ -514,6 +522,8 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 			players.depth_chart_position,
 			players.depth_chart_order,
 			players.injury_status,
+			players.injury_body_part,
+			players.injury_notes,
 			players.injury_start_date,
 			players.practice_participation,
 			players.espn_id,
@@ -525,6 +535,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 			players.stats_id,
 			players.gsis_id,
 			players.fantasypros_id,
+			(SELECT players_synced_at FROM app_settings WHERE id = 1),
 			`+takenPlayerExpression+` AS is_taken
 		FROM players
 		LEFT JOIN nfl_teams ON nfl_teams.id = players.nfl_team_id
@@ -550,6 +561,8 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 		&depthPosition,
 		&depthOrder,
 		&injuryStatus,
+		&injuryBodyPart,
+		&injuryNotes,
 		&injuryStart,
 		&practice,
 		&espnID,
@@ -561,6 +574,7 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 		&statsID,
 		&gsisID,
 		&fantasyProsID,
+		&sleeperDataUpdatedAt,
 		&isTaken,
 	)
 	if err != nil {
@@ -584,8 +598,11 @@ func loadPlayerProfile(ctx context.Context, db *sql.DB, playerID int64) (PlayerD
 	detail.Player.DepthChartPosition = nullStringPointer(depthPosition)
 	detail.Player.DepthChartOrder = nullIntPointer(depthOrder)
 	detail.Player.InjuryStatus = nullStringPointer(injuryStatus)
+	detail.Player.InjuryBodyPart = nullStringPointer(injuryBodyPart)
+	detail.Player.InjuryNotes = nullStringPointer(injuryNotes)
 	detail.Player.InjuryStartDate = nullStringPointer(injuryStart)
 	detail.Player.PracticeParticipation = nullStringPointer(practice)
+	detail.Player.SleeperDataUpdatedAt = nullStringPointer(sleeperDataUpdatedAt)
 	detail.Player.ProviderIDs = ProviderIDs{
 		GSIS:        nullStringPointer(gsisID),
 		FantasyPros: nullStringPointer(fantasyProsID),
@@ -638,6 +655,33 @@ func loadPlayerSeason(ctx context.Context, db *sql.DB, playerID int64) (*PlayerS
 		return nil, fmt.Errorf("get player season stats: %w", err)
 	}
 	return &stats, nil
+}
+
+func loadPlayerSeasonTeams(ctx context.Context, db *sql.DB, playerID int64) ([]NFLTeam, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT nfl_teams.id, nfl_teams.abbreviation, nfl_teams.name
+		FROM player_week_stats
+		JOIN nfl_teams ON nfl_teams.id = player_week_stats.nfl_team_id
+		WHERE player_week_stats.player_id = ? AND player_week_stats.season = 2025
+		GROUP BY nfl_teams.id, nfl_teams.abbreviation, nfl_teams.name
+		ORDER BY MIN(player_week_stats.week), nfl_teams.abbreviation
+	`, playerID)
+	if err != nil {
+		return nil, fmt.Errorf("get player season teams: %w", err)
+	}
+	defer rows.Close()
+	teams := make([]NFLTeam, 0)
+	for rows.Next() {
+		var team NFLTeam
+		if err := rows.Scan(&team.ID, &team.Abbreviation, &team.Name); err != nil {
+			return nil, fmt.Errorf("scan player season team: %w", err)
+		}
+		teams = append(teams, team)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read player season teams: %w", err)
+	}
+	return teams, nil
 }
 
 func loadPlayerDraftData(ctx context.Context, db *sql.DB, playerID int64) (PlayerDraftData, error) {

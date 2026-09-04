@@ -156,8 +156,11 @@ export interface PlayerProfile {
   depth_chart_position: string | null
   depth_chart_order: number | null
   injury_status: string | null
+  injury_body_part: string | null
+  injury_notes: string | null
   injury_start_date: string | null
   practice_participation: string | null
+  sleeper_data_updated_at: string | null
   provider_ids: PlayerProviderIDs
   is_taken: boolean
 }
@@ -222,6 +225,7 @@ export interface PlayerDetail {
   projections: PlayerProjections | null
   odds: PlayerDetailOdds
   morality: PlayerMorality | null
+  season_teams: NFLTeam[]
   weekly: PlayerWeekStats[]
   weekly_summary: WeeklySummary
 }

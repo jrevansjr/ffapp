@@ -112,8 +112,11 @@ type playerProfileResponse struct {
 	DepthChartPosition    *string             `json:"depth_chart_position"`
 	DepthChartOrder       *int                `json:"depth_chart_order"`
 	InjuryStatus          *string             `json:"injury_status"`
+	InjuryBodyPart        *string             `json:"injury_body_part"`
+	InjuryNotes           *string             `json:"injury_notes"`
 	InjuryStartDate       *string             `json:"injury_start_date"`
 	PracticeParticipation *string             `json:"practice_participation"`
+	SleeperDataUpdatedAt  *string             `json:"sleeper_data_updated_at"`
 	ProviderIDs           providerIDsResponse `json:"provider_ids"`
 	IsTaken               bool                `json:"is_taken"`
 }
@@ -175,6 +178,7 @@ type playerDetailResponse struct {
 	Projections   *playerProjectionsResponse `json:"projections"`
 	Odds          playerOddsResponse         `json:"odds"`
 	Morality      *playerMoralityResponse    `json:"morality"`
+	SeasonTeams   []playerTeamResponse       `json:"season_teams"`
 	Weekly        []weeklyStatsResponse      `json:"weekly"`
 	WeeklySummary weeklySummaryResponse      `json:"weekly_summary"`
 }
@@ -308,8 +312,11 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 			DepthChartPosition:    detail.Player.DepthChartPosition,
 			DepthChartOrder:       detail.Player.DepthChartOrder,
 			InjuryStatus:          detail.Player.InjuryStatus,
+			InjuryBodyPart:        detail.Player.InjuryBodyPart,
+			InjuryNotes:           detail.Player.InjuryNotes,
 			InjuryStartDate:       detail.Player.InjuryStartDate,
 			PracticeParticipation: detail.Player.PracticeParticipation,
+			SleeperDataUpdatedAt:  detail.Player.SleeperDataUpdatedAt,
 			ProviderIDs: providerIDsResponse{
 				GSIS:        detail.Player.ProviderIDs.GSIS,
 				FantasyPros: detail.Player.ProviderIDs.FantasyPros,
@@ -328,6 +335,7 @@ func newPlayerDetailResponse(detail database.PlayerDetail, now time.Time) player
 		Projections:   newPlayerProjectionsResponse(detail.Projections),
 		Odds:          newPlayerOddsResponse(detail.Odds),
 		Morality:      newPlayerMoralityResponse(detail.Morality),
+		SeasonTeams:   newPlayerTeamResponses(detail.SeasonTeams),
 		Weekly:        weekly,
 		WeeklySummary: summarize(points),
 	}
@@ -369,6 +377,16 @@ func newPlayerTeamResponse(team *database.NFLTeam) *playerTeamResponse {
 		return nil
 	}
 	return &playerTeamResponse{ID: team.ID, Abbreviation: team.Abbreviation, Name: team.Name}
+}
+
+func newPlayerTeamResponses(teams []database.NFLTeam) []playerTeamResponse {
+	response := make([]playerTeamResponse, 0, len(teams))
+	for _, team := range teams {
+		response = append(response, playerTeamResponse{
+			ID: team.ID, Abbreviation: team.Abbreviation, Name: team.Name,
+		})
+	}
+	return response
 }
 
 // newSeasonStatsResponse derives per-game presentation values only when a

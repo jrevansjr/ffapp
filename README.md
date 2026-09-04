@@ -61,7 +61,7 @@ The reference-data build contains:
 - 2026 sportsbook-consensus passing, rushing, and receiving yard/TD lines plus all 32 NFL-team win totals.
 - a source-dated, user-supplied 0–5 morality index for 116 players.
 
-The Sleeper player response is cached under `./data/import-cache/`. Re-running within 24 hours uses that cache instead of repeating Sleeper's large player request. The nflverse stats and DynastyProcess ID crosswalk are also cached there and reused indefinitely because they describe a completed historical season. Aggregate ADP, Draft ECR, and projections have independent response/metadata caches. These directories and SQLite files are gitignored.
+The Sleeper player response is cached under `./data/import-cache/`. Re-running within 24 hours uses that cache instead of repeating Sleeper's large player request. Its current injury designation/body part/notes and depth-chart position/order are persisted with the player-data refresh timestamp. The nflverse stats and DynastyProcess ID crosswalk are also cached there and reused indefinitely because they describe a completed historical season. Aggregate ADP, Draft ECR, and projections have independent response/metadata caches. These directories and SQLite files are gitignored.
 
 Useful incremental commands:
 
@@ -131,13 +131,15 @@ On the second computer, open `http://<laptop-LAN-IP>:5173`. Both browsers read t
 
 ## Current behavior
 
-Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
+Overview and Draft Day show the real imported player pool. Overview season metrics and Draft Day player-inspector charts now use persisted 2025 weekly and season data. The inspector identifies every NFL team represented in a player's 2025 weekly rows; nflverse's `LA` abbreviation is normalized to the app's canonical `LAR`. The player importer stores current Sleeper identity, team, experience, depth-chart, injury, and cross-provider metadata.
 
 After the three explicit refreshes and a cache-only load/rebuild, Overview shows Aggregate ADP, ECR fields, and all six projection columns. Draft Day groups all 2025 performance values above the charts and preserves its position-aware 2026 FantasyPros projection card. A separate 2026 Sportsbook Consensus card shows position-relevant player lines and the player's NFL-team win total. Missing or unmatched values remain `—` rather than zero.
 
 Live mode stores Sleeper picks per draft and derives taken/available state without modifying player rows. Draft Day refreshes the local draft snapshot once per second, so newly selected players leave the available table without a page reload; Overview uses that same snapshot for taken styling. Unknown Sleeper player IDs are retained with pick metadata and do not stop synchronization. Intentionally unsupported kicker and defense picks remain in draft history without producing unknown-player warnings. A failed Sleeper request preserves the last successful picks and marks the snapshot stale.
 
 Draft Day distinguishes live sync, initial syncing, paused polling, a stale persisted snapshot, a browser-to-local-API refresh failure, and an unconfigured draft. The selected-player inspector closes when that player becomes taken, remains independently scrollable beside the player table on common laptop widths, and retains keyboard-selectable rows with visible focus. Charts label their left/right scales and retain tooltips and legends without adding draft-time interactions.
+
+The available-player table keeps `Pos` for the broad fantasy position and adds a sortable `Depth` value such as `SWR 2` or `RB 1`, sourced from Sleeper. The inspector shows Sleeper's current injury designation, body part, optional notes, practice participation, injury start date, and player-data refresh time without predicting whether the player will miss a game.
 
 The backend starts exactly one poller only when a draft ID is configured and polling is enabled. It syncs immediately, then uses the Admin interval (default 2000 ms). Saving a different draft ID or interval cleanly replaces that loop; disabling polling stops it. Enabling the Admin toggle authorizes these repeated public pick requests until it is turned off. Browser refreshes only read SQLite through `GET /api/draft/state` and never trigger Sleeper calls.
 

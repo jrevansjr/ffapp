@@ -11,6 +11,7 @@ type WeeklyStat struct {
 	GSISID     string
 	PlayerName string
 	Position   string
+	Team       string
 	Season     int
 	Week       int
 

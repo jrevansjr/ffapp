@@ -111,12 +111,14 @@ func TestPlayerAndTeamEndpoints(t *testing.T) {
 	}
 	if detail.WeeklySummary.Average == nil || detail.Player.ProviderIDs.Sportradar == nil ||
 		detail.Player.ProviderIDs.GSIS == nil ||
+		detail.Player.InjuryBodyPart == nil || detail.Player.InjuryNotes == nil ||
+		detail.Player.SleeperDataUpdatedAt == nil || len(detail.SeasonTeams) != 2 ||
 		detail.Weekly[0].PassingYards == 0 || detail.Projections == nil ||
 		detail.Projections.PassingTouchdowns == nil || detail.Odds.PassingYards == nil ||
 		detail.Odds.PassingTouchdowns == nil || detail.Odds.RushingYards == nil ||
 		detail.Odds.RushingTouchdowns == nil || detail.Odds.TeamWins == nil ||
 		detail.Odds.ReceivingYards != nil || detail.Morality == nil {
-		t.Fatal("player detail is missing summary, provider identity, or passing yards")
+		t.Fatalf("player detail is missing expected data: %#v", detail)
 	}
 	if detail.Odds.PassingYards.Source != "sportsbook_consensus" ||
 		detail.Odds.PassingYards.CapturedAt != "2026-08-31T01:23:28Z" {
@@ -156,6 +158,9 @@ func TestPlayerDetailHandlesMissingValues(t *testing.T) {
 	}
 	if response.Weekly == nil || len(response.Weekly) != 0 {
 		t.Fatalf("weekly = %#v, want non-nil empty array", response.Weekly)
+	}
+	if response.SeasonTeams == nil || len(response.SeasonTeams) != 0 {
+		t.Fatalf("season_teams = %#v, want non-nil empty array", response.SeasonTeams)
 	}
 }
 
@@ -481,12 +486,16 @@ func loadAPITestFixture(t *testing.T, db *sql.DB) {
 			(2, 'BUF', 'Buffalo Bills');
 		INSERT INTO players (
 			id, sleeper_player_id, first_name, last_name, position, nfl_team_id,
-			birth_date, active, years_exp, sportradar_id, gsis_id
+			birth_date, active, years_exp, depth_chart_position, depth_chart_order,
+			injury_status, injury_body_part, injury_notes, sportradar_id, gsis_id
 		) VALUES
-			(1, 'fixture-qb', 'Alex', 'Alpha', 'QB', 1, '1998-01-01', 1, 4, 'sr-qb', 'gsis-qb'),
-			(2, 'fixture-rb', 'Blair', 'Beta', 'RB', 1, '1999-01-01', 1, 3, 'sr-rb', 'gsis-rb'),
-			(3, 'fixture-wr', 'Casey', 'Gamma', 'WR', 2, '2000-01-01', 1, 2, 'sr-wr', 'gsis-wr'),
-			(4, 'fixture-te', 'Devon', 'Theta', 'TE', 2, '2001-01-01', 1, 1, 'sr-te', 'gsis-te');
+			(1, 'fixture-qb', 'Alex', 'Alpha', 'QB', 1, '1998-01-01', 1, 4, 'QB', 1, 'Questionable', 'Knee', 'Limited workload', 'sr-qb', 'gsis-qb'),
+			(2, 'fixture-rb', 'Blair', 'Beta', 'RB', 1, '1999-01-01', 1, 3, 'RB', 2, NULL, NULL, NULL, 'sr-rb', 'gsis-rb'),
+			(3, 'fixture-wr', 'Casey', 'Gamma', 'WR', 2, '2000-01-01', 1, 2, 'SWR', 1, NULL, NULL, NULL, 'sr-wr', 'gsis-wr'),
+			(4, 'fixture-te', 'Devon', 'Theta', 'TE', 2, '2001-01-01', 1, 1, 'TE', 2, NULL, NULL, NULL, 'sr-te', 'gsis-te');
+		UPDATE app_settings
+		SET players_synced_at = '2026-09-03T12:00:00Z'
+		WHERE id = 1;
 		INSERT INTO player_season_stats (
 			player_id, season, games_played, fantasy_points_half_ppr, passing_yards,
 			targets, receptions, rushing_attempts, receiving_yards, rushing_yards,
@@ -495,10 +504,10 @@ func loadAPITestFixture(t *testing.T, db *sql.DB) {
 		INSERT INTO player_week_stats (
 			player_id, season, week, fantasy_points_half_ppr, passing_yards,
 			targets, receptions, rushing_attempts, receiving_yards, rushing_yards,
-			receiving_touchdowns, rushing_touchdowns
+			receiving_touchdowns, rushing_touchdowns, nfl_team_id
 		) VALUES
-			(1, 2025, 1, 18, 220, 0, 0, 3, 0, 10, 0, 0),
-			(1, 2025, 2, 22, 280, 0, 0, 5, 0, 20, 0, 1);
+			(1, 2025, 1, 18, 220, 0, 0, 3, 0, 10, 0, 0, 1),
+			(1, 2025, 2, 22, 280, 0, 0, 5, 0, 20, 0, 1, 2);
 		INSERT INTO player_adp (player_id, season, source, adp, updated_at)
 		VALUES (1, 2026, 'fantasypros', 12.5, '2026-08-01T00:00:00Z');
 		INSERT INTO player_rankings (

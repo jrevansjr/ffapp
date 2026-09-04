@@ -22,6 +22,11 @@ func TestFetchPlayersParsesFlexibleProfileValues(t *testing.T) {
 				"active": true,
 				"number": "17",
 				"years_exp": 4,
+				"depth_chart_position": "SWR",
+				"depth_chart_order": 2,
+				"injury_status": "Questionable",
+				"injury_body_part": "Knee",
+				"injury_notes": "Limited workload",
 				"rotowire_id": 999,
 				"gsis_id": null
 			}
@@ -38,7 +43,10 @@ func TestFetchPlayersParsesFlexibleProfileValues(t *testing.T) {
 	}
 	player := players["123"]
 	if len(raw) == 0 || player.PlayerID.Value != "123" || player.Number.Value != 17 ||
-		player.YearsExp.Value != 4 || player.RotowireID.Value != "999" || player.GSISID.Valid {
+		player.YearsExp.Value != 4 || player.DepthChartPosition.Value != "SWR" ||
+		player.DepthChartOrder.Value != 2 || player.InjuryStatus.Value != "Questionable" ||
+		player.InjuryBodyPart.Value != "Knee" || player.InjuryNotes.Value != "Limited workload" ||
+		player.RotowireID.Value != "999" || player.GSISID.Valid {
 		t.Fatalf("parsed player = %#v", player)
 	}
 }

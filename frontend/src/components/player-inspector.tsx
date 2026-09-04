@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import WeeklyTrendChart, { type WeeklySeries } from "@/components/weekly-trend-chart"
 import { getPlayer } from "@/lib/api"
 import type { OddsLine, PlayerDetail } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 function formatDecimal(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : value.toFixed(1)
@@ -140,6 +141,32 @@ function formatCapturedAt(timestamp: string): string {
     : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
+function formatDate(value: string | null): string {
+  if (value === null) return "—"
+  const date = new Date(value.includes("T") ? value : `${value}T00:00:00Z`)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { dateStyle: "medium", timeZone: "UTC" })
+}
+
+function hasInjuryDesignation(status: string | null): boolean {
+  return status !== null && status.trim() !== "" && status.toUpperCase() !== "NA"
+}
+
+function injuryPanelClass(status: string | null): string {
+  if (!hasInjuryDesignation(status)) return "border-emerald-200 bg-emerald-50/50"
+  switch (status?.toUpperCase()) {
+    case "OUT":
+    case "IR":
+    case "PUP":
+    case "SUS":
+    case "DNR":
+      return "border-red-300 bg-red-50/70"
+    default:
+      return "border-amber-300 bg-amber-50/70"
+  }
+}
+
 /** PlayerInspector loads one selected player's local detail and exposes the manual draft fallback. */
 export default function PlayerInspector({
   canMarkDrafted,
@@ -197,6 +224,8 @@ export default function PlayerInspector({
   const player = detail.data.player
   const usage = usageChart(detail.data)
   const oddsSource = oddsProvenance(detail.data)
+  const isInjured = hasInjuryDesignation(player.injury_status)
+  const historicalTeams = detail.data.season_teams.map((team) => team.abbreviation).join(", ")
 
   return (
     <aside
@@ -249,6 +278,40 @@ export default function PlayerInspector({
             }
           />
         </dl>
+
+        <div className={cn("mt-4 rounded-md border px-3 py-3", injuryPanelClass(player.injury_status))}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide">Sleeper injury status</p>
+            <span className="rounded-full bg-background/80 px-2 py-0.5 text-xs font-semibold">
+              {isInjured ? player.injury_status : "No designation"}
+            </span>
+          </div>
+          <p className="mt-2 text-sm font-medium">
+            {isInjured
+              ? [player.injury_body_part, player.injury_notes].filter(Boolean).join(" · ") ||
+                "No additional injury description supplied."
+              : "No current injury designation is present in Sleeper's player data."}
+          </p>
+          {isInjured && (player.practice_participation !== null || player.injury_start_date !== null) && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {[
+                player.practice_participation === null
+                  ? null
+                  : `Practice: ${player.practice_participation}`,
+                player.injury_start_date === null
+                  ? null
+                  : `Start date: ${formatDate(player.injury_start_date)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            {player.sleeper_data_updated_at === null
+              ? "Sleeper player-data refresh time unavailable."
+              : `Sleeper player data updated ${formatCapturedAt(player.sleeper_data_updated_at)}.`}
+          </p>
+        </div>
 
         <div className="mt-4 border-t border-border pt-4">
           <button
@@ -327,11 +390,14 @@ export default function PlayerInspector({
           <Metric label="Low" value={formatDecimal(detail.data.weekly_summary.low)} />
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Metric
+            label={detail.data.season_teams.length === 1 ? "2025 NFL team" : "2025 NFL teams"}
+            value={historicalTeams || "—"}
+          />
           <Metric label="Games played" value={formatWhole(detail.data.season?.games_played)} />
-          <Metric label="Receptions" value={formatWhole(detail.data.season?.receptions)} />
           <Metric label="Targets/game" value={formatDecimal(detail.data.season?.targets_per_game)} />
           <Metric
-            label="Rush attempts/game"
+            label="Carries/game"
             value={formatDecimal(detail.data.season?.rushing_attempts_per_game)}
           />
         </dl>

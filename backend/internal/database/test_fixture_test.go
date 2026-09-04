@@ -16,12 +16,17 @@ func loadPlayerQueryFixture(t *testing.T, db *sql.DB) {
 
 		INSERT INTO players (
 			id, sleeper_player_id, first_name, last_name, position, nfl_team_id,
-			birth_date, active, years_exp, sportradar_id, gsis_id
+			birth_date, active, years_exp, depth_chart_position, depth_chart_order,
+			injury_status, injury_body_part, injury_notes, sportradar_id, gsis_id
 		) VALUES
-			(1, 'fixture-qb', 'Alex', 'Alpha', 'QB', 1, '1998-01-01', 1, 4, 'sr-qb', 'gsis-qb'),
-			(2, 'fixture-rb', 'Blair', 'Beta', 'RB', 1, '1999-01-01', 1, 3, 'sr-rb', 'gsis-rb'),
-			(3, 'fixture-wr', 'Casey', 'Gamma', 'WR', 2, '2000-01-01', 1, 2, 'sr-wr', 'gsis-wr'),
-			(4, 'fixture-te', 'Devon', 'Theta', 'TE', 2, '2001-01-01', 1, 1, 'sr-te', 'gsis-te');
+			(1, 'fixture-qb', 'Alex', 'Alpha', 'QB', 1, '1998-01-01', 1, 4, 'QB', 1, 'Questionable', 'Knee', 'Limited workload', 'sr-qb', 'gsis-qb'),
+			(2, 'fixture-rb', 'Blair', 'Beta', 'RB', 1, '1999-01-01', 1, 3, 'RB', 2, NULL, NULL, NULL, 'sr-rb', 'gsis-rb'),
+			(3, 'fixture-wr', 'Casey', 'Gamma', 'WR', 2, '2000-01-01', 1, 2, 'SWR', 1, NULL, NULL, NULL, 'sr-wr', 'gsis-wr'),
+			(4, 'fixture-te', 'Devon', 'Theta', 'TE', 2, '2001-01-01', 1, 1, 'TE', 2, NULL, NULL, NULL, 'sr-te', 'gsis-te');
+
+		UPDATE app_settings
+		SET players_synced_at = '2026-09-03T12:00:00Z'
+		WHERE id = 1;
 
 		INSERT INTO player_season_stats (
 			player_id, season, games_played, fantasy_points_half_ppr, passing_yards,
@@ -32,10 +37,10 @@ func loadPlayerQueryFixture(t *testing.T, db *sql.DB) {
 		INSERT INTO player_week_stats (
 			player_id, season, week, fantasy_points_half_ppr, passing_yards,
 			targets, receptions, rushing_attempts, receiving_yards, rushing_yards,
-			receiving_touchdowns, rushing_touchdowns
+			receiving_touchdowns, rushing_touchdowns, nfl_team_id
 		) VALUES
-			(1, 2025, 1, 18, 220, 0, 0, 3, 0, 10, 0, 0),
-			(1, 2025, 2, 22, 280, 0, 0, 5, 0, 20, 0, 1);
+			(1, 2025, 1, 18, 220, 0, 0, 3, 0, 10, 0, 0, 1),
+			(1, 2025, 2, 22, 280, 0, 0, 5, 0, 20, 0, 1, 2);
 
 		INSERT INTO player_adp (player_id, season, source, adp, updated_at)
 		VALUES (1, 2026, 'fantasypros', 12.5, '2026-08-01T00:00:00Z');

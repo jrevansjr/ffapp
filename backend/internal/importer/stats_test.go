@@ -55,11 +55,11 @@ func TestLoadStatsMatchesBackfillsAggregatesAndIsIdempotent(t *testing.T) {
 	// A duplicate provider row must combine into the same player/week record.
 	weekly.Rows = append(weekly.Rows, nflverse.WeeklyStat{
 		GSISID: "gsis-rb-1", PlayerName: "Not The Local Name", Position: "RB",
-		Season: 2025, Week: 1, Receptions: 1, Targets: 1, ReceivingYards: 5,
+		Team: "BUF", Season: 2025, Week: 1, Receptions: 1, Targets: 1, ReceivingYards: 5,
 	})
 	weekly.Rows = append(weekly.Rows, nflverse.WeeklyStat{
 		GSISID: "unknown-high", PlayerName: "Unknown Star", Position: "WR",
-		Season: 2025, Week: 1, Receptions: 10, Targets: 12, ReceivingYards: 150, ReceivingTouchdowns: 2,
+		Team: "ARI", Season: 2025, Week: 1, Receptions: 10, Targets: 12, ReceivingYards: 150, ReceivingTouchdowns: 2,
 	})
 	weekly.SourceRows = len(weekly.Rows)
 	crosswalk := nflverse.PlayerIDDataset{
@@ -100,6 +100,19 @@ func TestLoadStatsMatchesBackfillsAggregatesAndIsIdempotent(t *testing.T) {
 	}
 	if games != 18 || points != 28 || targets != 19 || receptions != 19 {
 		t.Fatalf("RB season totals = games %d points %.2f targets %d receptions %d", games, points, targets, receptions)
+	}
+	var historicalTeam string
+	if err := db.QueryRow(`
+		SELECT nfl_teams.abbreviation
+		FROM player_week_stats
+		JOIN nfl_teams ON nfl_teams.id = player_week_stats.nfl_team_id
+		JOIN players ON players.id = player_week_stats.player_id
+		WHERE players.sleeper_player_id = 'rb-1' AND player_week_stats.week = 1
+	`).Scan(&historicalTeam); err != nil {
+		t.Fatal(err)
+	}
+	if historicalTeam != "BUF" {
+		t.Fatalf("historical team = %q, want BUF", historicalTeam)
 	}
 	second, err := LoadStats(context.Background(), db, weekly, crosswalk)
 	if err != nil {
@@ -157,6 +170,45 @@ func TestLoadStatsRollsBackReplacementOnWriteFailure(t *testing.T) {
 	}
 	if after := rowCount(t, db, "player_week_stats"); after != before {
 		t.Fatalf("weekly rows after rollback = %d, want %d", after, before)
+	}
+}
+
+func TestLoadStatsNormalizesRamsAndRejectsUnknownTeams(t *testing.T) {
+	db := statsTestDatabase(t)
+	weekly := completeWeeklyFixture()
+	weekly.Rows[0].Team = "LA"
+	if _, err := LoadStats(context.Background(), db, weekly, nflverse.PlayerIDDataset{}); err != nil {
+		t.Fatalf("LoadStats() with Rams abbreviation error = %v", err)
+	}
+	var abbreviation string
+	if err := db.QueryRow(`
+		SELECT nfl_teams.abbreviation
+		FROM player_week_stats
+		JOIN nfl_teams ON nfl_teams.id = player_week_stats.nfl_team_id
+		JOIN players ON players.id = player_week_stats.player_id
+		WHERE players.sleeper_player_id = 'qb-1' AND player_week_stats.week = 1
+	`).Scan(&abbreviation); err != nil {
+		t.Fatal(err)
+	}
+	if abbreviation != "LAR" {
+		t.Fatalf("normalized Rams abbreviation = %q, want LAR", abbreviation)
+	}
+
+	weekly.Rows[0].Team = "UNKNOWN"
+	if _, err := LoadStats(context.Background(), db, weekly, nflverse.PlayerIDDataset{}); err == nil {
+		t.Fatal("LoadStats() with unknown team error = nil")
+	}
+	if err := db.QueryRow(`
+		SELECT nfl_teams.abbreviation
+		FROM player_week_stats
+		JOIN nfl_teams ON nfl_teams.id = player_week_stats.nfl_team_id
+		JOIN players ON players.id = player_week_stats.player_id
+		WHERE players.sleeper_player_id = 'qb-1' AND player_week_stats.week = 1
+	`).Scan(&abbreviation); err != nil {
+		t.Fatal(err)
+	}
+	if abbreviation != "LAR" {
+		t.Fatalf("historical team after rejected replacement = %q, want LAR", abbreviation)
 	}
 }
 
@@ -225,11 +277,11 @@ func completeWeeklyFixture() nflverse.WeeklyDataset {
 	for week := 1; week <= 18; week++ {
 		dataset.Rows = append(dataset.Rows,
 			nflverse.WeeklyStat{
-				GSISID: "gsis-qb-1", PlayerName: "Test QB", Position: "QB", Season: 2025, Week: week,
+				GSISID: "gsis-qb-1", PlayerName: "Test QB", Position: "QB", Team: "ARI", Season: 2025, Week: week,
 				PassingYards: 250, PassingTouchdowns: 2, PassingInterceptions: 1,
 			},
 			nflverse.WeeklyStat{
-				GSISID: "gsis-rb-1", PlayerName: "Test RB", Position: "RB", Season: 2025, Week: week,
+				GSISID: "gsis-rb-1", PlayerName: "Test RB", Position: "RB", Team: "BUF", Season: 2025, Week: week,
 				RushingAttempts: 10, RushingYards: 10, Receptions: 1, Targets: 1,
 			},
 		)
@@ -240,9 +292,9 @@ func completeWeeklyFixture() nflverse.WeeklyDataset {
 
 func weeklyCSVFixture() []byte {
 	var body strings.Builder
-	body.WriteString("player_id,player_display_name,position_group,season,week,season_type,passing_yards,passing_tds,passing_interceptions,passing_2pt_conversions,carries,rushing_yards,rushing_tds,rushing_2pt_conversions,receptions,targets,receiving_yards,receiving_tds,receiving_2pt_conversions,fumbles_lost_total\n")
+	body.WriteString("player_id,player_display_name,position_group,team,season,week,season_type,passing_yards,passing_tds,passing_interceptions,passing_2pt_conversions,carries,rushing_yards,rushing_tds,rushing_2pt_conversions,receptions,targets,receiving_yards,receiving_tds,receiving_2pt_conversions,fumbles_lost_total\n")
 	for week := 1; week <= 18; week++ {
-		body.WriteString("gsis-qb-1,Test QB,QB,2025,")
+		body.WriteString("gsis-qb-1,Test QB,QB,ARI,2025,")
 		body.WriteString(strconv.Itoa(week))
 		body.WriteString(",REG,250,2,1,0,0,0,0,0,0,0,0,0,0,0\n")
 	}

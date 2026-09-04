@@ -223,11 +223,12 @@ func upsertPlayer(
 			sleeper_player_id, first_name, last_name, position, nfl_team_id,
 			birth_date, active, status, number, college, height, weight,
 			birth_country, years_exp, depth_chart_position, depth_chart_order,
-			injury_status, injury_start_date, practice_participation, espn_id,
+			injury_status, injury_body_part, injury_notes, injury_start_date,
+			practice_participation, espn_id,
 			sportradar_id, rotowire_id, rotoworld_id, yahoo_id, fantasy_data_id,
 			stats_id, gsis_id
 		) VALUES (
-			?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		)
 		ON CONFLICT (sleeper_player_id) DO UPDATE SET
 			first_name = excluded.first_name,
@@ -246,6 +247,8 @@ func upsertPlayer(
 			depth_chart_position = excluded.depth_chart_position,
 			depth_chart_order = excluded.depth_chart_order,
 			injury_status = excluded.injury_status,
+			injury_body_part = excluded.injury_body_part,
+			injury_notes = excluded.injury_notes,
 			injury_start_date = excluded.injury_start_date,
 			practice_participation = excluded.practice_participation,
 			espn_id = excluded.espn_id,
@@ -273,6 +276,8 @@ func upsertPlayer(
 		nullableString(player.DepthChartPosition),
 		nullableInt(player.DepthChartOrder),
 		nullableString(player.InjuryStatus),
+		nullableString(player.InjuryBodyPart),
+		nullableString(player.InjuryNotes),
 		nullableString(player.InjuryStartDate),
 		nullableString(player.PracticeParticipation),
 		nullableString(player.ESPNID),

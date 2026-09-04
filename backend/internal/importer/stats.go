@@ -155,6 +155,29 @@ func loadStatsWithThresholds(
 		return summary, fmt.Errorf("begin stats import: %w", err)
 	}
 	defer tx.Rollback()
+	teamIDs, err := loadTeamIDs(ctx, tx)
+	if err != nil {
+		return summary, err
+	}
+	for _, stat := range aggregated {
+		abbreviation := historicalTeamAbbreviation(stat.Team)
+		if _, found := teamIDs[abbreviation]; !found {
+			return summary, fmt.Errorf(
+				"nflverse team %q for GSIS ID %s week %d is not a canonical NFL team",
+				stat.Team,
+				stat.GSISID,
+				stat.Week,
+			)
+		}
+	}
+	weeklyTeamIDs := make([]int64, len(matched))
+	for index, mapped := range matched {
+		teamID, found := teamIDs[historicalTeamAbbreviation(mapped.Stat.Team)]
+		if !found {
+			return summary, fmt.Errorf("validated nflverse team %q is unavailable", mapped.Stat.Team)
+		}
+		weeklyTeamIDs[index] = teamID
+	}
 	for playerID, gsisID := range backfills {
 		if _, err := tx.ExecContext(ctx, `UPDATE players SET gsis_id = ? WHERE id = ?`, gsisID, playerID); err != nil {
 			return summary, fmt.Errorf("backfill GSIS ID %s: %w", gsisID, err)
@@ -170,14 +193,14 @@ func loadStatsWithThresholds(
 		INSERT INTO player_week_stats (
 			player_id, season, week, fantasy_points_half_ppr, targets,
 			receptions, rushing_attempts, receiving_yards, rushing_yards,
-			receiving_touchdowns, rushing_touchdowns, passing_yards
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			receiving_touchdowns, rushing_touchdowns, passing_yards, nfl_team_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return summary, fmt.Errorf("prepare weekly stats insert: %w", err)
 	}
 	defer statement.Close()
-	for _, mapped := range matched {
+	for index, mapped := range matched {
 		stat := mapped.Stat
 		if _, err := statement.ExecContext(
 			ctx,
@@ -193,6 +216,7 @@ func loadStatsWithThresholds(
 			stat.ReceivingTouchdowns,
 			stat.RushingTouchdowns,
 			stat.PassingYards,
+			weeklyTeamIDs[index],
 		); err != nil {
 			return summary, fmt.Errorf("insert weekly stats for GSIS ID %s week %d: %w", stat.GSISID, stat.Week, err)
 		}
@@ -246,6 +270,15 @@ func aggregateWeeklyStats(rows []nflverse.WeeklyStat) ([]nflverse.WeeklyStat, er
 			aggregated[key] = stat
 			continue
 		}
+		if current.Team != stat.Team {
+			return nil, fmt.Errorf(
+				"weekly stats repeat GSIS ID %s week %d with teams %q and %q",
+				stat.GSISID,
+				stat.Week,
+				current.Team,
+				stat.Team,
+			)
+		}
 		addWeeklyStat(&current, stat)
 		aggregated[key] = current
 	}
@@ -263,6 +296,14 @@ func aggregateWeeklyStats(rows []nflverse.WeeklyStat) ([]nflverse.WeeklyStat, er
 		return result[i].GSISID < result[j].GSISID
 	})
 	return result, nil
+}
+
+func historicalTeamAbbreviation(value string) string {
+	abbreviation := strings.ToUpper(strings.TrimSpace(value))
+	if abbreviation == "LA" {
+		return "LAR"
+	}
+	return abbreviation
 }
 
 func addWeeklyStat(total *nflverse.WeeklyStat, next nflverse.WeeklyStat) {

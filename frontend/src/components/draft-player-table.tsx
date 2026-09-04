@@ -32,6 +32,15 @@ function formatADP(value: number | undefined): string {
   return value === undefined ? "—" : value.toFixed(1)
 }
 
+function formatDepth(player: PlayerListItem): string {
+  if (player.depth_chart_position !== null && player.depth_chart_order !== null) {
+    return `${player.depth_chart_position} ${player.depth_chart_order}`
+  }
+  if (player.depth_chart_position !== null) return player.depth_chart_position
+  if (player.depth_chart_order !== null) return `Order ${player.depth_chart_order}`
+  return "—"
+}
+
 const columns = columnHelper.columns([
   columnHelper.accessor((player) => `${player.first_name} ${player.last_name}`, {
     id: "name",
@@ -52,6 +61,23 @@ const columns = columnHelper.columns([
     sortDescFirst: false,
     sortUndefined: "last",
     cell: ({ getValue }) => getValue() ?? "—",
+  }),
+  columnHelper.accessor((player) => player.depth_chart_order ?? undefined, {
+    id: "depth",
+    header: "Depth",
+    sortFn: (left, right) => {
+      const orderDifference =
+        (left.original.depth_chart_order ?? Number.MAX_SAFE_INTEGER) -
+        (right.original.depth_chart_order ?? Number.MAX_SAFE_INTEGER)
+      if (orderDifference !== 0) return orderDifference
+      return (left.original.depth_chart_position ?? "").localeCompare(
+        right.original.depth_chart_position ?? "",
+      )
+    },
+    sortDescFirst: false,
+    sortUndefined: "last",
+    meta: { numeric: true },
+    cell: ({ row }) => formatDepth(row.original),
   }),
   columnHelper.accessor((player) => player.draft.tier ?? undefined, {
     id: "tier",
@@ -130,7 +156,7 @@ export default function DraftPlayerTable({
 
   return (
     <div className="max-h-[calc(100vh-20rem)] min-h-80 overflow-auto rounded-lg border border-border bg-card">
-      <table className="w-full min-w-[680px] border-collapse text-left text-xs">
+      <table className="w-full min-w-[760px] border-collapse text-left text-xs">
         <caption className="sr-only">
           Available fantasy football players. Select a row to open its player inspector.
         </caption>

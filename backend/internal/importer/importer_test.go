@@ -53,15 +53,16 @@ func TestLoadTeamsAndPlayersIsIdempotentAndReconciles(t *testing.T) {
 	if active != 0 {
 		t.Fatalf("removed player active = %d, want 0", active)
 	}
-	var college, gsisID, rotowireID string
+	var college, gsisID, rotowireID, injuryBodyPart, injuryNotes string
 	if err := db.QueryRow(`
-		SELECT college, gsis_id, rotowire_id
+		SELECT college, gsis_id, rotowire_id, injury_body_part, injury_notes
 		FROM players WHERE sleeper_player_id = 'wr-1'
-	`).Scan(&college, &gsisID, &rotowireID); err != nil {
+	`).Scan(&college, &gsisID, &rotowireID, &injuryBodyPart, &injuryNotes); err != nil {
 		t.Fatalf("load updated player profile: %v", err)
 	}
-	if college != "Updated University" || gsisID != "gsis-wr-1" || rotowireID != "2001" {
-		t.Fatalf("updated identity = %q, %q, %q", college, gsisID, rotowireID)
+	if college != "Updated University" || gsisID != "gsis-wr-1" || rotowireID != "2001" ||
+		injuryBodyPart != "Knee" || injuryNotes != "Limited workload" {
+		t.Fatalf("updated identity = %q, %q, %q, %q, %q", college, gsisID, rotowireID, injuryBodyPart, injuryNotes)
 	}
 	var syncedAt string
 	if err := db.QueryRow(`SELECT players_synced_at FROM app_settings WHERE id = 1`).Scan(&syncedAt); err != nil {
@@ -206,19 +207,22 @@ func fixturePlayers() sleeper.PlayersResponse {
 
 func fixturePlayer(position, team string) sleeper.Player {
 	return sleeper.Player{
-		FirstName:  stringValue("Test"),
-		LastName:   stringValue(position),
-		FullName:   stringValue("Test " + position),
-		Position:   stringValue(position),
-		Team:       stringValue(team),
-		BirthDate:  stringValue("2000-01-01"),
-		Active:     true,
-		Status:     stringValue("Active"),
-		Number:     sleeper.IntValue{Value: 10, Valid: true},
-		College:    stringValue("Test University"),
-		YearsExp:   sleeper.IntValue{Value: 2, Valid: true},
-		RotowireID: stringValue("2001"),
-		GSISID:     stringValue("gsis-" + strings.ToLower(position) + "-1"),
+		FirstName:      stringValue("Test"),
+		LastName:       stringValue(position),
+		FullName:       stringValue("Test " + position),
+		Position:       stringValue(position),
+		Team:           stringValue(team),
+		BirthDate:      stringValue("2000-01-01"),
+		Active:         true,
+		Status:         stringValue("Active"),
+		Number:         sleeper.IntValue{Value: 10, Valid: true},
+		College:        stringValue("Test University"),
+		YearsExp:       sleeper.IntValue{Value: 2, Valid: true},
+		InjuryStatus:   stringValue("Questionable"),
+		InjuryBodyPart: stringValue("Knee"),
+		InjuryNotes:    stringValue("Limited workload"),
+		RotowireID:     stringValue("2001"),
+		GSISID:         stringValue("gsis-" + strings.ToLower(position) + "-1"),
 	}
 }
 

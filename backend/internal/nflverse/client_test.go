@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-const testWeeklyHeader = "player_id,player_display_name,position_group,season,week,season_type,passing_yards,passing_tds,passing_interceptions,passing_2pt_conversions,carries,rushing_yards,rushing_tds,rushing_2pt_conversions,receptions,targets,receiving_yards,receiving_tds,receiving_2pt_conversions,fumbles_lost_total\n"
+const testWeeklyHeader = "player_id,player_display_name,position_group,team,season,week,season_type,passing_yards,passing_tds,passing_interceptions,passing_2pt_conversions,carries,rushing_yards,rushing_tds,rushing_2pt_conversions,receptions,targets,receiving_yards,receiving_tds,receiving_2pt_conversions,fumbles_lost_total\n"
 
 func TestParseWeeklyStatsFiltersAndUsesNamedColumns(t *testing.T) {
 	body := testWeeklyHeader +
-		"00-001,Quarter Back,QB,2025,1,REG,250,2,1,0,3,12,0,0,0,0,0,0,0,1\n" +
-		"00-002,Post Season,RB,2025,1,POST,0,0,0,0,10,50,1,0,0,0,0,0,0,0\n" +
-		"00-003,Defender,DL,2025,1,REG,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n"
+		"00-001,Quarter Back,QB,LA,2025,1,REG,250,2,1,0,3,12,0,0,0,0,0,0,0,1\n" +
+		"00-002,Post Season,RB,BUF,2025,1,POST,0,0,0,0,10,50,1,0,0,0,0,0,0,0\n" +
+		"00-003,Defender,DL,ARI,2025,1,REG,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n"
 	dataset, err := ParseWeeklyStats([]byte(body))
 	if err != nil {
 		t.Fatalf("ParseWeeklyStats() error = %v", err)
@@ -23,7 +23,7 @@ func TestParseWeeklyStatsFiltersAndUsesNamedColumns(t *testing.T) {
 		t.Fatalf("dataset = %#v", dataset)
 	}
 	stat := dataset.Rows[0]
-	if stat.GSISID != "00-001" || stat.PassingYards != 250 || stat.PassingTouchdowns != 2 || stat.FumblesLost != 1 {
+	if stat.GSISID != "00-001" || stat.Team != "LA" || stat.PassingYards != 250 || stat.PassingTouchdowns != 2 || stat.FumblesLost != 1 {
 		t.Fatalf("stat = %#v", stat)
 	}
 }

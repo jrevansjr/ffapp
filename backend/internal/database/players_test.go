@@ -77,6 +77,15 @@ func TestPlayerQueriesAndDerivedAvailability(t *testing.T) {
 	if detail.Player.ProviderIDs.GSIS == nil {
 		t.Fatal("detail GSIS ID = nil, want fixture ID")
 	}
+	if detail.Player.InjuryBodyPart == nil || *detail.Player.InjuryBodyPart != "Knee" ||
+		detail.Player.InjuryNotes == nil || *detail.Player.InjuryNotes != "Limited workload" ||
+		detail.Player.SleeperDataUpdatedAt == nil || *detail.Player.SleeperDataUpdatedAt != "2026-09-03T12:00:00Z" {
+		t.Fatalf("detail Sleeper status = %#v", detail.Player)
+	}
+	if len(detail.SeasonTeams) != 2 || detail.SeasonTeams[0].Abbreviation != "ARI" ||
+		detail.SeasonTeams[1].Abbreviation != "BUF" {
+		t.Fatalf("detail season teams = %#v, want ARI then BUF", detail.SeasonTeams)
+	}
 	if detail.Weekly[0].PassingYards == 0 {
 		t.Fatal("detail weekly passing yards = 0, want seeded QB yards")
 	}

@@ -89,7 +89,7 @@ func (client *Client) get(ctx context.Context, url string, limit int64) ([]byte,
 }
 
 var weeklyColumns = []string{
-	"player_id", "player_display_name", "position_group", "season", "week", "season_type",
+	"player_id", "player_display_name", "position_group", "team", "season", "week", "season_type",
 	"passing_yards", "passing_tds", "passing_interceptions", "passing_2pt_conversions",
 	"carries", "rushing_yards", "rushing_tds", "rushing_2pt_conversions",
 	"receptions", "targets", "receiving_yards", "receiving_tds",
@@ -134,10 +134,14 @@ func ParseWeeklyStats(body []byte) (WeeklyDataset, error) {
 			GSISID:     cleanValue(record[columns["player_id"]]),
 			PlayerName: cleanValue(record[columns["player_display_name"]]),
 			Position:   position,
+			Team:       strings.ToUpper(cleanValue(record[columns["team"]])),
 			Season:     season,
 		}
 		if stat.GSISID == "" {
 			return WeeklyDataset{}, fmt.Errorf("nflverse row %d has no player_id", line)
+		}
+		if stat.Team == "" {
+			return WeeklyDataset{}, fmt.Errorf("nflverse row %d has no team", line)
 		}
 		integerFields := []struct {
 			column string

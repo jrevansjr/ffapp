@@ -105,6 +105,8 @@ type Player struct {
 	DepthChartPosition    StringValue `json:"depth_chart_position"`
 	DepthChartOrder       IntValue    `json:"depth_chart_order"`
 	InjuryStatus          StringValue `json:"injury_status"`
+	InjuryBodyPart        StringValue `json:"injury_body_part"`
+	InjuryNotes           StringValue `json:"injury_notes"`
 	InjuryStartDate       StringValue `json:"injury_start_date"`
 	PracticeParticipation StringValue `json:"practice_participation"`
 	ESPNID                StringValue `json:"espn_id"`
